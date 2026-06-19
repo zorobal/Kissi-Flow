@@ -1,0 +1,157 @@
+@import "tailwindcss";
+
+/* --- KISSINE FLOW BRAND IDENTITY OVERRIDES & BUTTON EFFECTS --- */
+
+/* 1. Global mapping of legacy blues to brand colors without breakage */
+[class*="bg-[#1E4E8C]"],
+[class*="bg-[#1e4e8c]"] {
+  background-color: #0B1F3F !important;
+}
+[class*="border-[#1E4E8C]"],
+[class*="border-[#1e4e8c]"] {
+  border-color: #0B1F3F !important;
+}
+[class*="text-[#1E4E8C]"],
+[class*="text-[#1e4e8c]"] {
+  color: #0B1F3F !important;
+}
+[class*="fill-[#1E4E8C]"],
+[class*="fill-[#1e4e8c]"] {
+  fill: #0B1F3F !important;
+}
+[class*="focus:ring-[#1E4E8C]"],
+[class*="focus:ring-[#1e4e8c]"] {
+  --tw-ring-color: #0B1F3F !important;
+}
+[class*="hover:bg-blue-800"]:hover {
+  background-color: #122c54 !important;
+}
+
+/* 2. Standardized rules for buttons and clickable items under the KISSINE FLOW design */
+
+/* Active/Cliquable standard buttons (Primary theme) */
+button[class*="bg-[#1E4E8C]"], 
+button[class*="bg-[#1e4e8c]"] {
+  background-color: #0B1F3F !important;
+  color: #ffffff !important;
+  transition: all 0.15s ease-in-out;
+}
+button[class*="bg-[#1E4E8C]"]:hover, 
+button[class*="bg-[#1e4e8c]"]:hover {
+  background-color: #142E56 !important;
+  transform: translateY(-0.5px);
+}
+button[class*="bg-[#1E4E8C]"]:active, 
+button[class*="bg-[#1e4e8c]"]:active {
+  background-color: #081730 !important;
+  transform: translateY(0.5px);
+}
+
+/* Accent highlight buttons (Orange actions) */
+button[class*="bg-[#F26522]"],
+button[class*="bg-[#f26522]"] {
+  background-color: #F26522 !important;
+  color: #ffffff !important;
+  transition: all 0.15s ease-in-out;
+}
+button[class*="bg-[#F26522]"]:hover,
+button[class*="bg-[#f26522]"]:hover {
+  background-color: #e05312 !important;
+  transform: translateY(-0.5px);
+}
+button[class*="bg-[#F26522]"]:active,
+button[class*="bg-[#f26522]"]:active {
+  background-color: #c94306 !important;
+  transform: translateY(0.5px);
+}
+
+/* Inactive but clickable buttons (Secondary/light outlines) */
+button:not([disabled])[class*="bg-white"],
+button:not([disabled])[class*="bg-gray-50"] {
+  transition: all 0.15s ease-in-out;
+}
+button:not([disabled])[class*="bg-white"]:hover,
+button:not([disabled])[class*="bg-gray-50"]:hover {
+  background-color: #f8fafc !important;
+  border-color: #0B1F3F !important;
+  color: #0B1F3F !important;
+}
+
+/* Disabled or Deactivated buttons (Non-clickable and greyed out) */
+button:disabled,
+button.disabled,
+button[disabled],
+.cursor-not-allowed,
+button:not([disabled])[class*="cursor-not-allowed"],
+button[class*="cursor-not-allowed"] {
+  background-color: #f1f5f9 !important;
+  color: #94a3b8 !important;
+  border-color: #cbd5e1 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  opacity: 0.60 !important;
+  box-shadow: none !important;
+}
+
+/* 3. Contrast / Text visibility corrections for low contrast regions */
+.text-gray-655, 
+.text-gray-650 {
+  color: #4b5563 !important; /* Proper fallback for high visibility text */
+}
+
+@media print {
+  /* Hide standard non-report components like the sidebar and headers during PDF download */
+  aside,
+  header,
+  #saas-system-badge,
+  #saas-switchers,
+  #role-auth-modal,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset layout structure for high-quality static PDF pages */
+  body, 
+  #root, 
+  #master-work-grid, 
+  #layout-print-content,
+  main {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Force background colors to print exactly as designed */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    /* Prevent outlines, underlines, or low-quality decorations from striking through text */
+    text-decoration-skip-ink: auto !important;
+  }
+
+  /* Ensure text is extremely legible and not crossed out by thick browser line decorations */
+  a, span, p, h1, h2, h3, h4, h5, h6, td, th {
+    text-shadow: none !important;
+  }
+
+  /* Ensure proper table break rules to avoid line borders slicing text in half */
+  tr, th, td {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  table {
+    border-collapse: collapse !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+}
+

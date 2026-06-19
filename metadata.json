@@ -1,0 +1,6 @@
+{
+  "name": "KissineFlow",
+  "description": "Un ERP restaurant puissant et modulaire (Odoo-style) : caisse tactile (POS), suivi des commandes, recettes (BOM), gestion de stock, achats fournisseurs, comptabilité et tableau de bord BI complet.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

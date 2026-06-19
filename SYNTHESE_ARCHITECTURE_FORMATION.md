@@ -1,0 +1,116 @@
+# 🏛️ Synthèse d'Architecture d'Intégration & Plan Global de Formation
+*Système Intégré ERP F&B - Restaurant Cockpit*
+
+Ce document synthétise de manière exhaustive l'architecture technique, le fonctionnement dynamique interconnecté de l'application et structure un dispositif de formation professionnel, module par module.
+
+---
+
+## I. Synthèse de l'Architecture Technique
+
+L'ERP repose sur une architecture moderne de type **SPA (Single Page Application)** développée en **React 18** avec **Vite**, hautement modulaire, typée de manière stricte en **TypeScript**, et stylisée avec les utilitaires de haute précision de **Tailwind CSS**.
+
+### 1. Organisation des Composants et Modularité
+L'application évite d'avoir un fichier monolithique en répartissant ses composants au sein du dossier `/src/components/` :
+* `App.tsx` : Point d'entrée de l'application, gestion de l'état centralisateur globale, gestion du cycle des transactions et routage applicatif.
+* `DateFilter.tsx` : Composant pivot réutilisable de filtrage temporel multi-critères.
+* `DashboardView.tsx` : Outil de restitution macro-opérationnelle et visualisation graphique à l'aide de **Recharts**.
+* `POSView.tsx` : Terminal d'encaissement et de saisie tactile des commandes clients.
+* `OrdersView.tsx` : Outil d'audit et de traçabilité des réquisitions de serveurs.
+* `CatalogueView.tsx` : Module de gestion des fiches articles, nomenclature technique (**BOM**) et importateur Excel adaptatif.
+* `StocksView.tsx` : Module d'inventaires physiques et d'ajustements de stock cuisine.
+* `PurchasesView.tsx` : Chaîne de validation logistique des commandes fournisseurs.
+* `AccountingView.tsx` : Suivi comptable des écritures de trésorerie et clôtures journalières.
+* `FinanceView.tsx` : Enregistrement et affectation fiscale des charges de fonctionnement.
+* `BilanView.tsx` : Compilation automatisée des soldes intermédiaires de gestion et de la rentabilité nette.
+
+### 2. Isolation Multi-Tenant Multi-Établissement
+L'ERP implémente une abstraction sémantique où les données de transaction (Commandes, Stocks, Clôtures, Dépenses) sont estampillées d'un identifiant `tenantId`. Cette modélisation permet le passage dynamique d'un établissement à un autre en isolant parfaitement l'intégrité opérationnelle de chaque restaurant d'un même groupe ou d'une même franchise.
+
+---
+
+## II. Le Fonctionnement Interconnecté de la Donnée
+
+La performance de l'ERP repose sur un maillage de transactions en temps réel où aucune donnée n'est isolée. La donnée opérationnelle se déplace horizontalement à travers 4 flux stratégiques :
+
+```
+          [FICHE INGRÉDIENT] ──(Définit CMP)──► [FICHE TECHNIQUE - BOM]
+                   ▲                                    │
+    (Ajuste CMP après réception)                  (Définit Coût Idéal)
+                   │                                    ▼
+[ACHATS & RÉCEPTIONS] ◄──(Flux Logistique)──  [CATALOGUE PLATS / ARTICLES]
+                                                        │
+                                                 (Définit Coût Resto)
+                                                        ▼
+                                                  [CAISSE POS]
+                                                        │
+                                               (Génère Vente Validée)
+                                                        ▼
+                                                [BILAN & MARGES]
+                                                  - Approche BOM
+                                                  - Approche Resto
+```
+
+### 1. Le Flux de Vente et Déstockage Automatisé
+Lorsqu'un caissier valide un ticket dans le module **POS** :
+1. Une commande `Order` est créée avec le statut `CLOSED`.
+2. L'instance de vente alimente à la seconde les indicateurs de performance du **Dashboard** et les revenus d'exploitation du **Bilan Analystique**.
+3. **Le moteur de déstockage de recettes (BOM Engine)** analyse la fiche technique rattachée à chaque plat vendu : pour chaque ingrédient trouvé, le système soustrait automatiquement la quantité consommée de la quantité globale en rayon dans le module **Stocks**.
+
+### 2. Le Flux d'Approvisionnement et Réévaluation du Coût Moyen Pondéré (CMP)
+Lorsqu'un responsable logistique traite des approvisionnements dans le module **Achats** :
+1. La commande fournisseur passe par le cycle *Demande d'Achat $\rightarrow$ Bon de Commande $\rightarrow$ Réception physique*.
+2. La validation du bon de réception met immédiatement à jour les quantités physiques en **Stocks**.
+3. **La formule du CMP (Coût Moyen Pondéré)** est réévaluée dynamiquement :
+$$\text{Nouveau CMP} = \frac{(\text{Stock Initial} \times \text{CMP Initial}) + (\text{Quantité Reçue} \times \text{Prix d'Achat Unitaire})}{\text{Stock Initial} + \text{Quantité Reçue}}$$
+4. Le coût théorique d'achat calculé dans le **Catalogue** s'ajuste en continu de cette fluctuation de marché.
+
+### 3. Le Pilotage Double Marge : BOM vs Resto
+L'ERP résout le problème de l'écart classique entre la théorie et le terrain réel :
+* **Marge Matières Premières (BOM / Bill Of Materials)** : Basée sur la composition idéale de la recette configurée au CMP. C'est l'objectif d'efficacité absolue de la cuisine.
+* **Marge brute Resto globale (Coûts Personnalisés)** : Repose sur les coûts de revient réels et spécifiques que le gérant peut saisir manuellement pour chaque plat. Cette rentabilité inclut l'intégration des pertes habituelles, des écarts d'inventaires d'ingrédients ou du packaging, offrant ainsi la vision la plus fidèle de la rentabilité brute.
+
+---
+
+## III. Programme Global de Formation Module par Module
+
+Ce parcours est conçu de manière directive pour assurer une prise de poste structurée des collaborateurs.
+
+### Module 1 : Pilotage Analytique & Veille Stratégique (Administrateurs & Décideurs)
+* **Contenu** : Tableau de bord, Bilan SIG et Administration.
+* **Objectifs de compétence** :
+  * Interpréter la dispersion des charges (Fixes vs Variables) du Bilan.
+  * Analyser les performances comparées entre la rentabilité optimale BOM et réelle Resto.
+  * Superviser l'intégrité opérationnelle via l'outil des **Logs d'Audit**.
+* **Points critiques** : Comprendre pourquoi l'accès de modification du catalogue de prix doit rester confidentiel et contrôlé via la gestion des droits.
+
+### Module 2 : Gestion des Matières & Nomenclature Technique (Chefs de Cuisine & Food & Beverage Manager)
+* **Contenu** : Fiches Ingrédients, Fiches Desserts/Plats, Recettes et Fiches Techniques.
+* **Objectifs de compétence** :
+  * Définir l'organigramme de composition d'un plat (matière première principale, composants secondaires).
+  * Maîtriser l'outil d'importation de masse Excel pour charger rapidement un catalogue de recettes.
+  * Coordonner les ingrédients alternatifs pour pallier les ruptures logistiques temporaires.
+* **Points critiques** : Saisir les ingrédients dans la même unité de mesure (ex: kg ou L) que celle utilisée pour paramétrer les fiches d'inventaires.
+
+### Module 3 : Logistique physique, Flux Achats & Inventaires (Responsables Logistiques & Magasiniers)
+* **Contenu** : Stocks, Ajustements, Inventaires, Commandes d'achats.
+* **Objectifs de compétence** :
+  * Déclarer les variations manuelles de stock de cuisine en motivant judicieusement chaque écart (Ex: Casse, Vol, Offert).
+  * Réaliser une clôture d'inventaire rigoureuse, en reportant le comptage physique pour dresser l'écart théorique.
+  * Valider une réception fournisseur pour générer la mise à jour automatique des stocks de sécurité.
+* **Points critiques** : Un inventaire validé écrase la valeur théorique système. À réaliser uniquement en dehors des heures de service actifs.
+
+### Module 4 : Encaissement & Relation Client (Caissiers & Maîtres d'Hôtel)
+* **Contenu** : Terminal POS Tactile, Gestion des tables de salle.
+* **Objectifs de compétence** :
+  * Encaisser rapidement en scindant les paiements selon la demande du client (Espèces et monnaie électronique).
+  * Appliquer des remises commerciales de ligne ou globales lors de gestes commerciaux décidés par la direction.
+  * Naviguer d'une table à l'autre pour assurer le service fluide des commandes de boissons et plats chauds.
+* **Points critiques** : S'assurer du bon statut final `CLOSED` du ticket pour garantir la comptabilisation correcte des fonds en caisse.
+
+### Module 5 : Finances d'Exploitation & Clôture Comptable (Comptables & Managers de caisse)
+* **Contenu** : Comptabilité d'exploitation, Clôtures journalières, Suivi des dépenses.
+* **Objectifs de compétence** :
+  * Enregistrer les mouvements divers de caisse (entrées de fonds de roulement de départ, retraits de cash pour les coursiers).
+  * Produire la clôture journalière définitive (Zero-Out) figeant l'exercice opérationnel du jour.
+  * Imputer les factures de dépenses courantes (électricité, salaires, charges matériels) en répartissant la base HT et la TVA correspondante.
+* **Points critiques** : Les dépenses de caisse doivent correspondre aux tickets d'achats physiques pour éviter les écarts d'audit à la validation.
