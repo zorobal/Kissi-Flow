@@ -186,6 +186,10 @@ export default function SuperAdminView({
   const [syncLog, setSyncLog] = useState<string[]>([]);
   const [showSqlInstructions, setShowSqlInstructions] = useState<boolean>(false);
   const [selectedSyncTenantId, setSelectedSyncTenantId] = useState<string>(() => activeTenantId || (tenants[0]?.id || ''));
+  const [detectedTenants, setDetectedTenants] = useState<string[]>([]);
+  const [isDetecting, setIsDetecting] = useState<boolean>(false);
+  const [useManualSyncId, setUseManualSyncId] = useState<boolean>(false);
+  const [manualSyncId, setManualSyncId] = useState<string>('');
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const getSupabaseClient = (url: string, key: string) => {
@@ -256,20 +260,65 @@ export default function SuperAdminView({
     }
   };
 
+  const handleDetectTenants = async () => {
+    if (!supabaseUrl || !supabaseKey) {
+      setSyncLog(prev => [...prev, "❌ URL ou Clé d'API Supabase manquante."]);
+      return;
+    }
+    setIsDetecting(true);
+    setSyncLog(prev => [...prev, "📡 Détection des établissements disponibles sur Supabase..."]);
+    try {
+      const client = getSupabaseClient(supabaseUrl, supabaseKey);
+      if (!client) {
+        setSyncLog(prev => [...prev, "❌ Impossible d'initialiser le client Supabase."]);
+        setIsDetecting(false);
+        return;
+      }
+      const { data, error } = await client
+        .from('kissineflow_sync')
+        .select('tenant_id');
+      
+      if (error) {
+        setSyncLog(prev => [...prev, `❌ Échec de la détection : ${error.message}`]);
+      } else if (data) {
+        const rawKeys = Array.from(new Set(data.map(item => item.tenant_id)));
+        const mode = (localStorage.getItem('erp-global-mode') as string || 'CLIENT').toLowerCase();
+        const prefix = `${mode}_`;
+        const filtered = rawKeys
+          .filter(key => key.startsWith(prefix))
+          .map(key => key.replace(prefix, ''));
+        
+        setDetectedTenants(filtered);
+        setSyncLog(prev => [
+          ...prev, 
+          `✅ Détection réussie ! ${filtered.length} établissement(s) trouvé(s) pour le mode ${mode.toUpperCase()} : [${filtered.join(', ')}]`
+        ]);
+        if (filtered.length > 0) {
+          setSelectedSyncTenantId(filtered[0]);
+        }
+      }
+    } catch (err: any) {
+      setSyncLog(prev => [...prev, `❌ Erreur lors de la détection : ${err.message || err}`]);
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
   const handlePushToSupabase = async () => {
     if (!supabaseUrl || !supabaseKey) {
       setSyncLog(prev => [...prev, "❌ URL ou Clé d'API Supabase manquante."]);
       setSyncStatus('ERROR');
       return;
     }
-    if (!selectedSyncTenantId) {
-      setSyncLog(prev => [...prev, "❌ Veuillez sélectionner un établissement client à sauvegarder."]);
+    const targetTenantId = useManualSyncId ? manualSyncId.trim() : selectedSyncTenantId;
+    if (!targetTenantId) {
+      setSyncLog(prev => [...prev, "❌ Veuillez spécifier ou sélectionner un établissement client à sauvegarder."]);
       setSyncStatus('ERROR');
       return;
     }
 
     setSyncStatus('SYNCING');
-    setSyncLog(["🔄 Initialisation de la sauvegarde globale (Push) vers Supabase...", `Établissement : ${selectedSyncTenantId}`, `URL : ${supabaseUrl.trim()}`]);
+    setSyncLog(["🔄 Initialisation de la sauvegarde globale (Push) vers Supabase...", `Établissement : ${targetTenantId}`, `URL : ${supabaseUrl.trim()}`]);
 
     const client = getSupabaseClient(supabaseUrl, supabaseKey);
     if (!client) {
@@ -314,7 +363,7 @@ export default function SuperAdminView({
 
       let successCount = 0;
       for (const col of collections) {
-        const tenantKey = `${mode}_${selectedSyncTenantId}`;
+        const tenantKey = `${mode}_${targetTenantId}`;
         setSyncLog(prev => [...prev, `📤 Envoi de la collection '${col.key}' en cours...`]);
         
         const { error } = await client
@@ -338,13 +387,13 @@ export default function SuperAdminView({
 
       setSyncLog(prev => [
         ...prev,
-        `🎉 Sauvegarde SuperAdmin réussie ! ${successCount}/${collections.length} collections ont été sécurisées dans Supabase pour l'établissement '${selectedSyncTenantId}'.`,
+        `🎉 Sauvegarde SuperAdmin réussie ! ${successCount}/${collections.length} collections ont été sécurisées dans Supabase pour l'établissement '${targetTenantId}'.`,
         `📈 Horodatage : ${new Date().toLocaleTimeString()}`
       ]);
       setSyncStatus('SUCCESS');
-      setToast({ text: `Sauvegarde Cloud réussie pour ${selectedSyncTenantId} !`, type: 'success' });
+      setToast({ text: `Sauvegarde Cloud réussie pour ${targetTenantId} !`, type: 'success' });
       setTimeout(() => setToast(null), 3000);
-      logsAction(`SuperAdmin: Sauvegarde Cloud complète vers Supabase (${successCount} collections) pour le site ${selectedSyncTenantId}`, 'SÉCURITÉ');
+      logsAction(`SuperAdmin: Sauvegarde Cloud complète vers Supabase (${successCount} collections) pour le site ${targetTenantId}`, 'SÉCURITÉ');
     } catch (err: any) {
       setSyncLog(prev => [...prev, `❌ Erreur inattendue : ${err.message || err}`]);
       setSyncStatus('ERROR');
@@ -357,14 +406,15 @@ export default function SuperAdminView({
       setSyncStatus('ERROR');
       return;
     }
-    if (!selectedSyncTenantId) {
-      setSyncLog(prev => [...prev, "❌ Veuillez sélectionner un établissement client à récupérer."]);
+    const targetTenantId = useManualSyncId ? manualSyncId.trim() : selectedSyncTenantId;
+    if (!targetTenantId) {
+      setSyncLog(prev => [...prev, "❌ Veuillez spécifier ou sélectionner un établissement client à récupérer."]);
       setSyncStatus('ERROR');
       return;
     }
 
     setSyncStatus('SYNCING');
-    setSyncLog(["🔄 Initialisation de la récupération globale (Pull) depuis Supabase...", `Établissement : ${selectedSyncTenantId}`, `URL : ${supabaseUrl.trim()}`]);
+    setSyncLog(["🔄 Initialisation de la récupération globale (Pull) depuis Supabase...", `Établissement : ${targetTenantId}`, `URL : ${supabaseUrl.trim()}`]);
 
     const client = getSupabaseClient(supabaseUrl, supabaseKey);
     if (!client) {
@@ -375,7 +425,7 @@ export default function SuperAdminView({
 
     try {
       const mode = (localStorage.getItem('erp-global-mode') as string || 'CLIENT').toLowerCase();
-      const tenantKey = `${mode}_${selectedSyncTenantId}`;
+      const tenantKey = `${mode}_${targetTenantId}`;
       
       setSyncLog(prev => [...prev, `📡 Récupération des enregistrements pour le site '${tenantKey}'...`]);
       
@@ -393,7 +443,7 @@ export default function SuperAdminView({
       if (!data || data.length === 0) {
         setSyncLog(prev => [
           ...prev,
-          `⚠️ Aucun enregistrement trouvé pour l'établissement '${selectedSyncTenantId}' sous le mode ${mode.toUpperCase()}.`,
+          `⚠️ Aucun enregistrement trouvé pour l'établissement '${targetTenantId}' sous le mode ${mode.toUpperCase()}.`,
           "👉 Effectuez d'abord une sauvegarde ('Push Cloud') depuis un appareil contenant vos données récentes."
         ]);
         setSyncStatus('SUCCESS');
@@ -486,12 +536,12 @@ export default function SuperAdminView({
 
       setSyncLog(prev => [
         ...prev,
-        `🎉 Restauration globale terminée ! ${restoredCount} collections de données appliquées localement avec succès pour l'établissement '${selectedSyncTenantId}'.`
+        `🎉 Restauration globale terminée ! ${restoredCount} collections de données appliquées localement avec succès pour l'établissement '${targetTenantId}'.`
       ]);
       setSyncStatus('SUCCESS');
-      setToast({ text: `Restauration Cloud réussie pour ${selectedSyncTenantId} !`, type: 'success' });
+      setToast({ text: `Restauration Cloud réussie pour ${targetTenantId} !`, type: 'success' });
       setTimeout(() => setToast(null), 3000);
-      logsAction(`SuperAdmin: Restauration Cloud complète depuis Supabase pour le site ${selectedSyncTenantId}`, 'SÉCURITÉ');
+      logsAction(`SuperAdmin: Restauration Cloud complète depuis Supabase pour le site ${targetTenantId}`, 'SÉCURITÉ');
     } catch (err: any) {
       setSyncLog(prev => [...prev, `❌ Erreur inattendue : ${err.message || err}`]);
       setSyncStatus('ERROR');
@@ -2144,20 +2194,73 @@ La console de synchronisation cloud permet au SuperAdmin de KissineFlow de sauve
                     <span>2. Établissement et Actions</span>
                   </h4>
                   <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wide">Établissement Client à Synchroniser</label>
-                      <select
-                        value={selectedSyncTenantId}
-                        onChange={(e) => setSelectedSyncTenantId(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-gray-200 text-xs rounded-lg text-gray-800 focus:outline-none focus:border-[#1E4E8C] focus:bg-white transition font-bold"
-                      >
-                        <option value="">-- Choisir un site restaurant --</option>
-                        {tenants.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name} ({t.id}) - {t.city || 'Yaoundé'}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wide">Établissement Client à Synchroniser</label>
+                        <button
+                          type="button"
+                          onClick={handleDetectTenants}
+                          disabled={isDetecting}
+                          className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 disabled:bg-slate-100 disabled:text-slate-400 rounded text-[9px] font-extrabold uppercase tracking-wider border border-indigo-150 transition flex items-center gap-1 cursor-pointer"
+                        >
+                          <Search size={10} className={isDetecting ? 'animate-spin' : ''} />
+                          <span>{isDetecting ? 'Détection...' : 'Détecter sur Supabase'}</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-4 py-1">
+                        <label className="flex items-center gap-1.5 text-[11px] text-gray-700 cursor-pointer font-semibold">
+                          <input
+                            type="radio"
+                            checked={!useManualSyncId}
+                            onChange={() => setUseManualSyncId(false)}
+                            className="text-[#1E4E8C] focus:ring-[#1E4E8C] h-3.5 w-3.5"
+                          />
+                          <span>Sélection de la liste ({tenants.length + detectedTenants.length} dispo)</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 text-[11px] text-gray-700 cursor-pointer font-semibold">
+                          <input
+                            type="radio"
+                            checked={useManualSyncId}
+                            onChange={() => setUseManualSyncId(true)}
+                            className="text-[#1E4E8C] focus:ring-[#1E4E8C] h-3.5 w-3.5"
+                          />
+                          <span>Saisie manuelle de l'ID</span>
+                        </label>
+                      </div>
+
+                      {!useManualSyncId ? (
+                        <select
+                          value={selectedSyncTenantId}
+                          onChange={(e) => setSelectedSyncTenantId(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-gray-200 text-xs rounded-lg text-gray-800 focus:outline-none focus:border-[#1E4E8C] focus:bg-white transition font-bold"
+                        >
+                          <option value="">-- Choisir un site restaurant --</option>
+                          {tenants.map((t) => (
+                            <option key={`local_${t.id}`} value={t.id}>
+                              [Local] {t.name} ({t.id})
+                            </option>
+                          ))}
+                          {detectedTenants.filter(id => !tenants.some(t => t.id === id)).map((id) => (
+                            <option key={`detected_${id}`} value={id}>
+                              [Cloud Supabase] {id} (Détecté)
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="space-y-1">
+                          <input
+                            type="text"
+                            placeholder="Ex: mon-super-restaurant, etc."
+                            value={manualSyncId}
+                            onChange={(e) => setManualSyncId(e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-50 border border-gray-200 text-xs rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#1E4E8C] focus:bg-white transition font-mono font-bold"
+                          />
+                          <p className="text-[10px] text-gray-500 font-semibold italic">
+                            Saisissez l'identifiant exact de l'établissement à restaurer depuis Supabase.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-xl space-y-1.5">
