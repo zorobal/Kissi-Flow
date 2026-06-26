@@ -11,17 +11,37 @@ export interface Tenant {
   logoUrl?: string;
   city: string;
   country: string;
+  active?: boolean; // Can be suspended or active
+  createdAt?: string;
+  raisonSociale?: string;
+  rccm?: string;
+  niu?: string;
+  regimeFiscal?: string;
+  parentId?: string; // Parent client/restaurant group ID for multi-site isolation
+  slogan?: string;
+}
+
+export interface UserPermission {
+  read: boolean;
+  write: boolean;
+  edit: boolean;
+  delete: boolean;
+  export: boolean;
+  import: boolean;
 }
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'ADMIN' | 'MANAGER' | 'CASHIER' | 'WAREHOUSE' | 'ACCOUNTING';
+  role: 'ADMIN' | 'MANAGER' | 'CASHIER' | 'WAREHOUSE' | 'ACCOUNTING' | 'SUPERADMIN';
   tenantId: string;
   active: boolean;
   allowedModules?: string[];
   password?: string;
+  mustChangePassword?: boolean; // first-time login flag to force password change
+  passwordChanged?: boolean; // tracks if user has changed their password
+  permissions?: Record<string, UserPermission>; // granular module-by-module permission matrix
 }
 
 export interface DishCategory {
@@ -297,5 +317,72 @@ export interface StockBatch {
   lossValidatedDate?: string; // Date de validation
   lossComment?: string; // Commentaire explicatif de la perte
 }
+
+export interface NonFoodItem {
+  id: string;
+  code: string;
+  name: string;
+  category: 'EMBALLAGE' | 'HYGIENE' | 'FOURNITURE' | 'MAINTENANCE' | 'AUTRE';
+  description: string;
+  stockActual: number;
+  stockMin: number;
+  stockMax: number;
+  unit: string; // Unité, Boîte, Carton, Rouleau, Litre, etc.
+  cmp: number; // Coût Moyen Pondéré
+  lastPurchasePrice: number;
+  supplierId?: string;
+  active: boolean;
+  tenantId: string;
+}
+
+export interface NonFoodMovement {
+  id: string;
+  date: string; // YYYY-MM-DD HH:MM
+  itemId: string;
+  itemName: string;
+  type: 'IN' | 'OUT' | 'ADJUST_PLUS' | 'ADJUST_MINUS' | 'INVENTORY';
+  quantity: number;
+  unitCost: number;
+  value: number;
+  reference: string; // Consommation Service, Achat, Ajustement, etc.
+  userId: string;
+  userName: string;
+  comment: string;
+  tenantId: string;
+}
+
+export type MealType = 'PETIT_DEJEUNER' | 'DEJEUNER' | 'DINER' | 'SUGGESTION' | 'PLAT_DU_JOUR' | 'DESSERT_DU_JOUR' | 'BOISSON_DU_JOUR';
+
+export interface MenuDuJour {
+  id: string;
+  dateMenu: string; // YYYY-MM-DD
+  title: string;
+  description: string;
+  image?: string;
+  active: boolean;
+  createdBy: string;
+  createdAt: string;
+  tenantId: string;
+  accompaniments?: string;
+}
+
+export interface DetailMenuJour {
+  id: string;
+  menuJourId: string;
+  platId: string; // Ref to Dish.id
+  typeRepas: MealType;
+  specialPrice?: number;
+  displayOrder: number;
+  availability: 'DISPONIBLE' | 'EPUISE' | 'SUSPENDU';
+}
+
+export interface FormuleDuJour {
+  id: string;
+  menuJourId: string;
+  name: string;
+  price: number;
+  description?: string;
+}
+
 
 

@@ -108,10 +108,24 @@ Le schéma ci-dessous illustre comment une action dans un module se répercute i
   * *Importateur de masse Excel* : Permet d'injecter des milliers de fiches, d'ingrédients et de fiches techniques d'un seul coup grâce à la structure d'onglets intelligents.
 
 ### E. Gestion des Stocks & Inventaires
-* **Description** : Module d'approvisionnement et de contrôle de la cuisine pour limiter le gaspillage alimentaire.
+* **Description** : Module d'approvisionnement et de contrôle de la cuisine pour limiter le gaspillage alimentaire et sécuriser l'actif circulant de l'établissement.
 * **Fonctions clés** :
   * *Fiches Ingrédients* : Unités de mesure flexibles (kg, g, L, Unités, Cartons), seuil de stock minimal et maximal d'alerte.
-  * *Ajustements manuels de stock* : Correctifs positifs/négatifs avec sélection de motifs standardisés (Pertes sèches, Vol, Erreur de livraison, Consommation personnel).
+  * *Validation Multicritères des Pertes d'Exploitation* : Pour faire face aux aléas d'un restaurant d'envergure, tout retrait de stock négatif s'accompagne d'un motif précis :
+    * 🚨 `Péremption / DLC Dépassée` : Retrait standard des produits arrivés à péremption.
+    * 🔌 `Coupure de courant / Rupture de chaîne du froid` : Mesure directe de l'impact financier d'une panne d'électricité ou d'un congélateur défectueux.
+    * 🍳 `Accident de cuisine / Casse / Renversement` : Comptabilise une maladresse, un contenant brisé ou un plat manqué à jeter.
+    * 🦠 `Altération qualité / Produit moisi` : Détérioration prématurée d'un ingrédient (ex: humidité).
+    * 🚛 `Avarie durant le transport / Livraison` : Produits inutilisables reçus directement du fournisseur.
+    * 🔍 `Vol ou Écart d'inventaire constaté` : Réajustement suite à une démarque inconnue constatée.
+    * ❓ `Autre motif exceptionnel / Force majeure`.
+  * *Moteur de Propagation des Pertes* :
+    * **Audit-Trail** : Historique exhaustif avec le motif exact sélectionné et le commentaire du manager.
+    * **Tableau de Bord** : Badge d'alerte dynamique rouge sous la boîte du Bénéfice Net (`Dont gaspillages / pertes : -X F`).
+    * **Bilan SIG** : Ligne de charge déductible comptable isolée s'imputant sur le résultat net global.
+  * *Synthèse Globale & Conjointe des Stocks (Actifs)* :
+    * Visualise de manière synchronisée la valeur globale des stocks de réserve en divisant l'actif circulant : **Alimentaire** (ingrédients) d'un côté, et **Hors-Alimentation** (consommables, packaging, hygiène, entretien) de l'autre.
+    * Permet de suivre les alertes de sous-seuil et ruptures de stock d'actifs pour chaque catégorie dans le Dashboard et sur la colonne latérale du Bilan Financier.
   * *Inventaire physique périodique* : Saisie des stocks réels constatés en rayon, calcul automatique des écarts de quantité et valorisation comptable de la démarque.
 
 ### F. Workflow d'Achats & Suivi Fournisseurs

@@ -47,8 +47,11 @@ Dans le module **Tableau de Bord BI**, le graphique d'analyse des flux économiq
   Calculé dynamiquement à chaque validation de Bon de Livraison (BL) d’achats :
   $$\text{CMP}_{\text{nouveau}} = \frac{(\text{Stock Actuel} \times \text{CMP}_{\text{actuel}}) + (\text{Quantité Reçue} \times \text{Prix Unitaire Achat})}{\text{Stock Actuel} + \text{Quantité Reçue}}$$
 
-* **Valorisation Financière Globale du Stock :**
-  $$\text{Valorisation Stock} = \sum \left(\text{Stock Actuel d'un Ingrédient} \times \text{CMP}\right)$$
+* **Valorisation Financière Globale du Stock (Actif Circulant) :**
+  Calculée de manière conjointe entre le stock d'ingrédients alimentaires et le stock de matériels/consommables hors-alimentation (packaging, hygiène, entretien) :
+  $$\text{Valorisation Alimentaire} = \sum \left(\text{Stock Actuel d'un Ingrédient} \times \text{CMP}\right)$$
+  $$\text{Valorisation Hors-Alimentation} = \sum \left(\text{Stock Actuel d'un Article Hors-Alim} \times \text{CMP}\right)$$
+  $$\text{Valorisation Globale Consolidée} = \text{Valorisation Alimentaire} + \text{Valorisation Hors-Alimentation}$$
 
 ### B. Module : Catalogue & Fiches Recettes (BOM / Food Cost)
 * **Coût de Revient Théorique d'un Plat (BOM Cost) :**
@@ -56,7 +59,16 @@ Dans le module **Tableau de Bord BI**, le graphique d'analyse des flux économiq
 * **Taux de Marge Brute Théorique d'un Plat :**
   $$\text{Taux de Marge} (\%) = \left(\frac{\text{Prix Vente HT} - \text{Coût Théorique}}{\text{Prix Vente HT}}\right) \times 100$$
 
-### C. Nouveau Module : Prestations, Buffets & Traiteur (KPI d'Écarts)
+### C. Moteur de Pertes Multi-Motifs & Impact sur la Rentabilité Nette
+Les anomalies de cuisine sont documentées au sein de l'ERP par motif d'origine (Péremption, Coupure de courant/Chaîne du froid, Casse/Accident de cuisine, Altération qualité, Avarie transport, Écart d'inventaire, Vol) :
+* **Valorisation d'une Perte de Cuisine :**
+  $$\text{Perte Financière de Lot} = \text{Quantité Perdue} \times \text{CMP de l'article}$$
+* **Sorties & Pertes de Consommables Hors-Alimentation (Période) :**
+  $$\text{Total Pertes Hors-Alim} = \sum_{\text{Mouvements OUT / ADJUST\_MINUS}} \left(\text{Quantité Sortie} \times \text{CMP de l'article}\right)$$
+* **Formule Complète du Bénéfice Net Réel (Dashboard & Bilan SIG) :**
+  $$\text{Bénéfice Net Réel} = \text{Marge Brute Resto} - \text{Charges de Fonctionnement (Dépenses)} - \text{Total Pertes Alimentaires} - \text{Total Pertes Hors-Alimentation}$$
+
+### D. Nouveau Module : Prestations, Buffets & Traiteur (KPI d'Écarts)
 Ce module gère deux activités majeures et calcule les écarts de performance par rapport aux objectifs fixés.
 
 #### 1. Planification & Déstockage des Buffets Organisés
@@ -102,3 +114,5 @@ Les données voyagent en temps réel pour assurer une cohérence absolue :
 2. **Sortie d'ingrédients Buffet :** Décrémente instantanément le stock physique dans le module **Stocks** et calcule la masse de coût de matières utilisées pour l'analyse de marge de ce buffet.
 3. **Caisse Tactile (Vente POS) :** Exporte les transactions de ventes vers le **Tableau de Bord** et alimente le module **Bilan** sous forme de CA. Elle permet également aux **Objectifs Financiers** de comparer instantanément la cible de vente fixée à une date donnée par rapport aux encaissements réels constatés à la seconde près.
 4. **Paramètres Système :** La définition de la TVA s'applique globalement à l’application, mettant à jour la conversion de l'assiette du Chiffre d'Affaires de tous les calculs analytiques.
+5. **Gestion des Pertes & Actifs Conjoints :** La validation d'une perte d'ingrédient alimente directement le badge d'alerte sous la carte bénèfice net du **Tableau de Bord** (mettant en exergue le préjudice de gaspillage) et s'impute comme charge directe brute déductible dans le **Bilan SIG**. Parallèlement, la valorisation globale intègre de manière synchrone l'actif circulant alimentaire et les consommables hors-alimentation (matériels, emballages, hygiène).
+

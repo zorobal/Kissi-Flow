@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import {
   Sparkles,
+  ChefHat,
   LayoutDashboard,
   Calculator,
   ShoppingBag,
@@ -31,7 +32,10 @@ import {
   KeyRound,
   Check,
   Printer,
-  UtensilsCrossed
+  UtensilsCrossed,
+  Package,
+  Download,
+  Smartphone
 } from 'lucide-react';
 
 import { jsPDF } from 'jspdf';
@@ -57,7 +61,12 @@ import {
   IngredientCategory,
   Expense,
   ChargeType,
-  StockBatch
+  StockBatch,
+  NonFoodItem,
+  NonFoodMovement,
+  MenuDuJour,
+  DetailMenuJour,
+  FormuleDuJour
 } from './types';
 
 // Import initial seed datasets
@@ -75,7 +84,9 @@ import {
   initialPurchaseRequests,
   initialCashMovements,
   initialDailyClosures,
-  initialAuditLogs
+  initialAuditLogs,
+  initialNonFoodItems,
+  initialNonFoodMovements
 } from './data';
 
 // Import Sub views
@@ -91,71 +102,208 @@ import SettingsView from './components/SettingsView';
 import FinanceView from './components/FinanceView';
 import BilanView from './components/BilanView';
 import PrestationsView from './components/PrestationsView';
+import NonFoodView from './components/NonFoodView';
+import SuperAdminView from './components/SuperAdminView';
+import MenuView from './components/MenuView';
 import { LogoIcon, LogoFull } from './components/Logo';
 import NotificationCenter from './components/NotificationCenter';
 
+const getInitialMenuData = () => {
+  const currentTodayStr = '2026-06-23';
+  const menuId = 'menu-mock-today';
+  
+  const mockMenu: MenuDuJour = {
+    id: menuId,
+    dateMenu: currentTodayStr,
+    title: 'La Isla Bonita - Menu du Jour',
+    description: 'Une odyssée culinaire authentique du terroir camerounais.',
+    active: true,
+    createdBy: 'Ferdinand',
+    createdAt: '2026-06-23T08:00:00Z',
+    tenantId: 'tenant-douala',
+    accompaniments: 'Riz Parfumé • Frites de pomme • Frites de plantain mûr (Alloco) • Miondo de pays • Couscous de manioc.'
+  };
+  
+  const mockDetails: DetailMenuJour[] = [
+    {
+      id: 'detail-mock-poulet',
+      menuJourId: menuId,
+      platId: 'dish-poulet-dg',
+      typeRepas: 'DEJEUNER',
+      specialPrice: 4200,
+      displayOrder: 1,
+      availability: 'DISPONIBLE'
+    },
+    {
+      id: 'detail-mock-ndole',
+      menuJourId: menuId,
+      platId: 'dish-ndole',
+      typeRepas: 'DINER',
+      specialPrice: 5000,
+      displayOrder: 2,
+      availability: 'DISPONIBLE'
+    },
+    {
+      id: 'detail-mock-poisson',
+      menuJourId: menuId,
+      platId: 'dish-poisson-braise',
+      typeRepas: 'SUGGESTION',
+      specialPrice: 5500,
+      displayOrder: 3,
+      availability: 'DISPONIBLE'
+    }
+  ];
+
+  const mockFormules: FormuleDuJour[] = [
+    {
+      id: 'formule-mock-express',
+      menuJourId: menuId,
+      name: 'Formule Express Sawa',
+      price: 5000,
+      description: 'Ndolé Impérial + Boisson locale glacée'
+    },
+    {
+      id: 'formule-mock-premium',
+      menuJourId: menuId,
+      name: 'Formule Isla Royal',
+      price: 9000,
+      description: 'Poulet DG Royal + Poisson Maquereau Braisé (Duo Festif)'
+    }
+  ];
+  
+  return { mockMenus: [mockMenu], mockDetails, mockFormules };
+};
+
 export default function App() {
-  // Master states
+  const [globalMode, setGlobalMode] = useState<'DEMO' | 'CLIENT'>(() => {
+    return (localStorage.getItem('erp-global-mode') as 'DEMO' | 'CLIENT') || 'DEMO';
+  });
+
+  const getStorageItem = <T,>(key: string, demoFallback: T, clientFallback: T): T => {
+    const raw = localStorage.getItem(`erp-${globalMode.toLowerCase()}-${key}`);
+    if (raw) return JSON.parse(raw);
+    return globalMode === 'DEMO' ? demoFallback : clientFallback;
+  };
+
+  const handleSwitchMode = (newMode: 'DEMO' | 'CLIENT') => {
+    localStorage.setItem('erp-global-mode', newMode);
+    if (newMode === 'CLIENT') {
+      localStorage.setItem('erp-active-user-id', 'user-superadmin');
+      localStorage.setItem('erp-active-tenant-id', 'superadmin');
+    } else {
+      localStorage.setItem('erp-active-user-id', 'user-admin');
+      localStorage.setItem('erp-active-tenant-id', 'tenant-douala');
+    }
+    localStorage.removeItem('app-unlocked');
+    sessionStorage.removeItem('app-unlocked');
+    window.location.reload();
+  };
+
+  // Master states prefix-separated
   const [tenants, setTenants] = useState<Tenant[]>(() => {
-    const local = localStorage.getItem('erp-tenants');
-    return local ? JSON.parse(local) : initialTenants;
+    return getStorageItem<Tenant[]>('tenants', initialTenants, []);
   });
+
   const [users, setUsers] = useState<User[]>(() => {
-    const local = localStorage.getItem('erp-users');
-    return local ? JSON.parse(local) : initialUsers;
+    const fallbackDemo = [...initialUsers];
+    const fallbackClient: User[] = [
+      {
+        id: 'user-superadmin',
+        name: 'Super Administrateur (Dév)',
+        email: 'developer@kissineflow.com',
+        role: 'SUPERADMIN',
+        tenantId: 'superadmin',
+        active: true,
+        password: 'kissine2026'
+      }
+    ];
+    const list = getStorageItem<User[]>('users', fallbackDemo, fallbackClient);
+    
+    // Always inject the default SuperAdmin if not already present
+    if (!list.some(u => u.role === 'SUPERADMIN')) {
+      list.unshift({
+        id: 'user-superadmin',
+        name: 'Super Administrateur (Dév)',
+        email: 'developer@kissineflow.com',
+        role: 'SUPERADMIN',
+        tenantId: 'superadmin',
+        active: true,
+        password: 'kissine2026'
+      });
+    }
+    return list;
   });
+
   const [dishes, setDishes] = useState<Dish[]>(() => {
-    const local = localStorage.getItem('erp-dishes');
-    return local ? JSON.parse(local) : initialDishes;
+    return getStorageItem<Dish[]>('dishes', initialDishes, []);
   });
+
   const [ingredients, setIngredients] = useState<Ingredient[]>(() => {
-    const local = localStorage.getItem('erp-ingredients');
-    return local ? JSON.parse(local) : initialIngredients;
+    return getStorageItem<Ingredient[]>('ingredients', initialIngredients, []);
   });
+
   const [recipes, setRecipes] = useState<Recipe[]>(() => {
-    const local = localStorage.getItem('erp-recipes');
-    return local ? JSON.parse(local) : initialRecipes;
+    return getStorageItem<Recipe[]>('recipes', initialRecipes, []);
   });
+
   const [orders, setOrders] = useState<Order[]>(() => {
-    const local = localStorage.getItem('erp-orders');
-    return local ? JSON.parse(local) : initialOrders;
+    return getStorageItem<Order[]>('orders', initialOrders, []);
   });
+
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(() => {
-    const local = localStorage.getItem('erp-stock-movements');
-    return local ? JSON.parse(local) : initialStockMovements;
+    return getStorageItem<StockMovement[]>('stock-movements', initialStockMovements, []);
   });
+
   const [physicalInventories, setPhysicalInventories] = useState<PhysicalInventory[]>(() => {
-    const local = localStorage.getItem('erp-physical-inventories');
-    return local ? JSON.parse(local) : [];
+    return getStorageItem<PhysicalInventory[]>('physical-inventories', [], []);
   });
+
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    const local = localStorage.getItem('erp-suppliers');
-    return local ? JSON.parse(local) : initialSuppliers;
+    return getStorageItem<Supplier[]>('suppliers', initialSuppliers, []);
   });
+
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(() => {
-    const local = localStorage.getItem('erp-purchase-orders');
-    return local ? JSON.parse(local) : initialPurchaseOrders;
+    return getStorageItem<PurchaseOrder[]>('purchase-orders', initialPurchaseOrders, []);
   });
+
   const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>(() => {
-    const local = localStorage.getItem('erp-purchase-requests');
-    return local ? JSON.parse(local) : initialPurchaseRequests;
+    return getStorageItem<PurchaseRequest[]>('purchase-requests', initialPurchaseRequests, []);
   });
+
   const [cashMovements, setCashMovements] = useState<CashRegisterMovement[]>(() => {
-    const local = localStorage.getItem('erp-cash-movements');
-    return local ? JSON.parse(local) : initialCashMovements;
+    return getStorageItem<CashRegisterMovement[]>('cash-movements', initialCashMovements, []);
   });
+
   const [dailyClosures, setDailyClosures] = useState<DailyClosure[]>(() => {
-    const local = localStorage.getItem('erp-daily-closures');
-    return local ? JSON.parse(local) : initialDailyClosures;
+    return getStorageItem<DailyClosure[]>('daily-closures', initialDailyClosures, []);
   });
+
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
-    const local = localStorage.getItem('erp-audit-logs');
-    return local ? JSON.parse(local) : initialAuditLogs;
+    return getStorageItem<AuditLog[]>('audit-logs', initialAuditLogs, []);
   });
+
+  const [nonFoodItems, setNonFoodItems] = useState<NonFoodItem[]>(() => {
+    return getStorageItem<any>('non-food-items', initialNonFoodItems, []) as NonFoodItem[];
+  });
+
+  const [nonFoodMovements, setNonFoodMovements] = useState<NonFoodMovement[]>(() => {
+    return getStorageItem<any>('non-food-movements', initialNonFoodMovements, []) as NonFoodMovement[];
+  });
+
+  const [menusDuJour, setMenusDuJour] = useState<MenuDuJour[]>(() => {
+    return getStorageItem<MenuDuJour[]>('menus-du-jour', getInitialMenuData().mockMenus, []);
+  });
+
+  const [detailMenusJour, setDetailMenusJour] = useState<DetailMenuJour[]>(() => {
+    return getStorageItem<DetailMenuJour[]>('detail-menus-jour', getInitialMenuData().mockDetails, []);
+  });
+
+  const [formulesDuJour, setFormulesDuJour] = useState<FormuleDuJour[]>(() => {
+    return getStorageItem<FormuleDuJour[]>('formules-du-jour', getInitialMenuData().mockFormules, []);
+  });
+
   const [stockBatches, setStockBatches] = useState<StockBatch[]>(() => {
-    const local = localStorage.getItem('erp-stock-batches');
-    if (local) return JSON.parse(local);
-    return [
+    const initialBatches: StockBatch[] = [
       {
         id: 'batch-1',
         ingredientId: 'ing-pou',
@@ -212,56 +360,89 @@ export default function App() {
         tenantId: 'tenant-douala'
       }
     ];
+    return getStorageItem<StockBatch[]>('stock-batches', initialBatches, []);
   });
 
-  // Synchronize state changes to localStorage
+  // Synchronize state changes with prefix based on active mode
   React.useEffect(() => {
-    localStorage.setItem('erp-stock-batches', JSON.stringify(stockBatches));
-  }, [stockBatches]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-stock-batches`, JSON.stringify(stockBatches));
+  }, [stockBatches, globalMode]);
 
   React.useEffect(() => {
-    localStorage.setItem('erp-tenants', JSON.stringify(tenants));
-  }, [tenants]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-tenants`, JSON.stringify(tenants));
+  }, [tenants, globalMode]);
+
   React.useEffect(() => {
-    localStorage.setItem('erp-users', JSON.stringify(users));
-  }, [users]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-users`, JSON.stringify(users));
+  }, [users, globalMode]);
+
   React.useEffect(() => {
-    localStorage.setItem('erp-dishes', JSON.stringify(dishes));
-  }, [dishes]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-dishes`, JSON.stringify(dishes));
+  }, [dishes, globalMode]);
+
   React.useEffect(() => {
-    localStorage.setItem('erp-ingredients', JSON.stringify(ingredients));
-  }, [ingredients]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-ingredients`, JSON.stringify(ingredients));
+  }, [ingredients, globalMode]);
+
   React.useEffect(() => {
-    localStorage.setItem('erp-recipes', JSON.stringify(recipes));
-  }, [recipes]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-recipes`, JSON.stringify(recipes));
+  }, [recipes, globalMode]);
+
   React.useEffect(() => {
-    localStorage.setItem('erp-[#1E4E8C]-orders', JSON.stringify(orders)); // Wait let's use direct key
-    localStorage.setItem('erp-orders', JSON.stringify(orders));
-  }, [orders]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-orders`, JSON.stringify(orders));
+  }, [orders, globalMode]);
+
   React.useEffect(() => {
-    localStorage.setItem('erp-stock-movements', JSON.stringify(stockMovements));
-  }, [stockMovements]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-stock-movements`, JSON.stringify(stockMovements));
+  }, [stockMovements, globalMode]);
+
   React.useEffect(() => {
-    localStorage.setItem('erp-physical-inventories', JSON.stringify(physicalInventories));
-  }, [physicalInventories]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-physical-inventories`, JSON.stringify(physicalInventories));
+  }, [physicalInventories, globalMode]);
+
   React.useEffect(() => {
-    localStorage.setItem('erp-suppliers', JSON.stringify(suppliers));
-  }, [suppliers]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-suppliers`, JSON.stringify(suppliers));
+  }, [suppliers, globalMode]);
+
   React.useEffect(() => {
-    localStorage.setItem('erp-purchase-orders', JSON.stringify(purchaseOrders));
-  }, [purchaseOrders]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-purchase-orders`, JSON.stringify(purchaseOrders));
+  }, [purchaseOrders, globalMode]);
+
   React.useEffect(() => {
-    localStorage.setItem('erp-purchase-requests', JSON.stringify(purchaseRequests));
-  }, [purchaseRequests]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-purchase-requests`, JSON.stringify(purchaseRequests));
+  }, [purchaseRequests, globalMode]);
+
   React.useEffect(() => {
-    localStorage.setItem('erp-cash-movements', JSON.stringify(cashMovements));
-  }, [cashMovements]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-cash-movements`, JSON.stringify(cashMovements));
+  }, [cashMovements, globalMode]);
+
   React.useEffect(() => {
-    localStorage.setItem('erp-daily-closures', JSON.stringify(dailyClosures));
-  }, [dailyClosures]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-daily-closures`, JSON.stringify(dailyClosures));
+  }, [dailyClosures, globalMode]);
+
   React.useEffect(() => {
-    localStorage.setItem('erp-audit-logs', JSON.stringify(auditLogs));
-  }, [auditLogs]);
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-audit-logs`, JSON.stringify(auditLogs));
+  }, [auditLogs, globalMode]);
+
+  React.useEffect(() => {
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-non-food-items`, JSON.stringify(nonFoodItems));
+  }, [nonFoodItems, globalMode]);
+
+  React.useEffect(() => {
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-non-food-movements`, JSON.stringify(nonFoodMovements));
+  }, [nonFoodMovements, globalMode]);
+
+  React.useEffect(() => {
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-menus-du-jour`, JSON.stringify(menusDuJour));
+  }, [menusDuJour, globalMode]);
+
+  React.useEffect(() => {
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-detail-menus-jour`, JSON.stringify(detailMenusJour));
+  }, [detailMenusJour, globalMode]);
+
+  React.useEffect(() => {
+    localStorage.setItem(`erp-${globalMode.toLowerCase()}-formules-du-jour`, JSON.stringify(formulesDuJour));
+  }, [formulesDuJour, globalMode]);
 
   // Dynamic reference states
   const [paymentMethods, setPaymentMethods] = useState<string[]>(() => {
@@ -388,17 +569,23 @@ export default function App() {
     localStorage.setItem('erp-active-tenant-id', activeTenantId);
   }, [activeTenantId]);
 
-  React.useEffect(() => {
-    localStorage.setItem('erp-active-user-id', activeUserId);
-  }, [activeUserId]);
-
   // System sidebar responsive triggers
   const [sidebarOpen, setSidebarOpen] = useState(true);
   
   // Tab control state
   const [activeTab, setActiveTab] = useState<
-    'DASHBOARD' | 'POS' | 'ORDERS' | 'CATALOGUE' | 'STOCKS' | 'PURCHASES' | 'ACCOUNTING' | 'ADMIN' | 'SETTINGS' | 'FINANCE' | 'BILAN' | 'ABOUT' | 'PRESTATIONS'
+    'DASHBOARD' | 'POS' | 'ORDERS' | 'CATALOGUE' | 'MENUS' | 'STOCKS' | 'PURCHASES' | 'ACCOUNTING' | 'ADMIN' | 'SETTINGS' | 'FINANCE' | 'BILAN' | 'ABOUT' | 'PRESTATIONS' | 'NON_FOOD' | 'SUPERADMIN'
   >('DASHBOARD');
+
+  React.useEffect(() => {
+    localStorage.setItem('erp-active-user-id', activeUserId);
+    const usr = users.find(u => u.id === activeUserId);
+    if (usr && usr.role === 'SUPERADMIN') {
+      if (activeTab !== 'SUPERADMIN' && activeTab !== 'ABOUT') {
+        setActiveTab('SUPERADMIN');
+      }
+    }
+  }, [activeUserId, activeTab, users]);
 
   // Password lock-screen states
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
@@ -409,14 +596,111 @@ export default function App() {
   });
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [passwordError, setPasswordError] = useState<string>('');
+  const [loginIdentifier, setLoginIdentifier] = useState<string>(() => {
+    const activeId = localStorage.getItem('erp-active-user-id') || 'user-admin';
+    const foundUser = users.find(u => u.id === activeId) || users[0];
+    return foundUser ? foundUser.email : '';
+  });
   const [keepConnected, setKeepConnected] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
+
+  // PWA states and listeners
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBtn, setShowInstallBtn] = useState<boolean>(false);
+  const [isStandalone, setIsStandalone] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBtn(true);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    const checkStandalone = () => {
+      const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+      setIsStandalone(isStandaloneMode);
+    };
+    checkStandalone();
+
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', checkStandalone);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', checkStandalone);
+      }
+    };
+  }, []);
+
+  const triggerInstallPWA = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response to install prompt: ${outcome}`);
+    setDeferredPrompt(null);
+    setShowInstallBtn(false);
+  };
 
   // User switching verification states
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [pendingPasswordInput, setPendingPasswordInput] = useState<string>('');
   const [pendingPasswordError, setPendingPasswordError] = useState<string>('');
   const [showPendingPassword, setShowPendingPassword] = useState<boolean>(false);
+
+  // Mandatory Password Change on first connection
+  const [mustChangePasswordUser, setMustChangePasswordUser] = useState<User | null>(null);
+  const [mustChangeNewPass, setMustChangeNewPass] = useState<string>('');
+  const [mustChangeConfirm, setMustChangeConfirm] = useState<string>('');
+  const [mustChangeError, setMustChangeError] = useState<string>('');
+
+  const handleSaveMustChangePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mustChangePasswordUser) return;
+    if (!mustChangeNewPass.trim()) {
+      setMustChangeError('Le nouveau mot de passe est obligatoire.');
+      return;
+    }
+    if (mustChangeNewPass.length < 4) {
+      setMustChangeError('Le mot de passe doit contenir au moins 4 caractères.');
+      return;
+    }
+    if (mustChangeNewPass !== mustChangeConfirm) {
+      setMustChangeError('Les deux mots de passe ne correspondent pas.');
+      return;
+    }
+
+    // Update user password and clear flag
+    setUsers(prevUsers => prevUsers.map(u => {
+      if (u.id === mustChangePasswordUser.id) {
+        return { ...u, password: mustChangeNewPass, mustChangePassword: false, passwordChanged: true };
+      }
+      return u;
+    }));
+
+    // Unlock the app and establish session for this specific tenant user!
+    setActiveUserId(mustChangePasswordUser.id);
+    setActiveTenantId(mustChangePasswordUser.tenantId);
+    setIsUnlocked(true);
+    setPasswordInput('');
+    setPasswordError('');
+    if (mustChangePasswordUser.role === 'CASHIER') setActiveTab('POS');
+    else if (mustChangePasswordUser.role === 'WAREHOUSE') setActiveTab('STOCKS');
+    else if (mustChangePasswordUser.role === 'ACCOUNTING') setActiveTab('ACCOUNTING');
+    else setActiveTab('DASHBOARD');
+
+    if (keepConnected) {
+      localStorage.setItem('app-unlocked', 'true');
+    } else {
+      sessionStorage.setItem('app-unlocked', 'true');
+    }
+
+    logsAction(`Mot de passe initial modifié avec succès et session ouverte pour ${mustChangePasswordUser.name}`, 'SÉCURITÉ');
+    setMustChangePasswordUser(null);
+  };
 
   // Self-service password change modal states (Any active user can change their password)
   const [showMyPasswordModal, setShowMyPasswordModal] = useState<boolean>(false);
@@ -467,15 +751,55 @@ export default function App() {
 
   const handleUnlockApp = (e: React.FormEvent) => {
     e.preventDefault();
-    const activeUser = users.find(u => u.id === activeUserId) || users[0];
+    
+    // Find user by typed email or username (case insensitively)
+    const activeUser = users.find(u => 
+      u.email.toLowerCase().trim() === loginIdentifier.toLowerCase().trim() ||
+      u.name.toLowerCase().trim() === loginIdentifier.toLowerCase().trim()
+    );
+
+    if (!activeUser) {
+      setPasswordError("Identifiant erroné (E-mail ou Nom d'utilisateur non reconnu).");
+      logsAction(`Tentative de déverrouillage infructueuse : Identifiant '${loginIdentifier}' non trouvé`, 'SÉCURITÉ');
+      return;
+    }
+
     const correctPassword = activeUser.password || 'password123';
     if (passwordInput === correctPassword || passwordInput === appPassword) {
+      // Check if user's restaurant/tenant is disabled (except for SuperAdmin)
+      if (activeUser.role !== 'SUPERADMIN') {
+        if (activeUser.active === false) {
+          setPasswordError("Votre compte collaborateur a été désactivé. Veuillez contacter l'administrateur de votre établissement.");
+          logsAction(`Refus de connexion pour ${activeUser.name} : compte collaborateur désactivé`, 'SÉCURITÉ');
+          return;
+        }
+
+        const tenant = tenants.find(t => t.id === activeUser.tenantId);
+        if (tenant && tenant.active === false) {
+          setPasswordError("Votre restaurant a été désactivé. Veuillez contacter l'administrateur de la plateforme.");
+          logsAction(`Refus de connexion pour ${activeUser.name} : le restaurant ${tenant.name} est suspendu/désactivé`, 'SÉCURITÉ');
+          return;
+        }
+      }
+
+      // Sync active context variables to the authenticated user
+      setActiveUserId(activeUser.id);
+      setActiveTenantId(activeUser.tenantId);
+
+      if (activeUser.mustChangePassword) {
+        setMustChangePasswordUser(activeUser);
+        setMustChangeNewPass('');
+        setMustChangeConfirm('');
+        setMustChangeError('');
+        return;
+      }
       setIsUnlocked(true);
       setPasswordError('');
       setPasswordInput('');
       
       // Auto set default allowed view/tab based on selected role
-      if (activeUser.role === 'CASHIER') setActiveTab('POS');
+      if (activeUser.role === 'SUPERADMIN') setActiveTab('SUPERADMIN');
+      else if (activeUser.role === 'CASHIER') setActiveTab('POS');
       else if (activeUser.role === 'WAREHOUSE') setActiveTab('STOCKS');
       else if (activeUser.role === 'ACCOUNTING') setActiveTab('ACCOUNTING');
       else setActiveTab('DASHBOARD');
@@ -500,8 +824,57 @@ export default function App() {
   };
 
   // Find active tenant and user details
-  const activeTenant = tenants.find(t => t.id === activeTenantId) || tenants[0];
+  const activeTenant: Tenant = tenants.find(t => t.id === activeTenantId) || tenants[0] || {
+    id: 'placeholder',
+    name: 'Établissement Principal',
+    raisonSociale: 'KissineFlow Client',
+    rccm: 'N/A',
+    niu: 'N/A',
+    regimeFiscal: 'Réel Simplifié',
+    address: 'Cameroun',
+    city: 'Yaoundé',
+    phone: '',
+    email: '',
+    logoUrl: '',
+    createdAt: new Date().toISOString()
+  };
   const activeUser = users.find(u => u.id === activeUserId) || users[0];
+
+  // Allowed tenants based on role and activeUser for Client / multi-site isolation
+  const allowedTenants = React.useMemo(() => {
+    if (!activeUser) return tenants;
+    if (activeUser.role === 'SUPERADMIN') {
+      return tenants;
+    }
+    const parentId = activeUser.tenantId;
+    // An administration user (ADMIN) can see and switch to their own Client Restaurant and any assigned Site Opérationnel elements
+    return tenants.filter(t => t.id === parentId || t.parentId === parentId);
+  }, [tenants, activeUser]);
+
+  // Handler to merge site/tenant updates back to the global tenants state safely
+  const handleTenantUpdateFromSettings = (updatedAllowedTenants: Tenant[]) => {
+    // Automatically assign parentId to any new child sites (ones created under active Client Restaurant Admin)
+    const processed = updatedAllowedTenants.map(t => {
+      if (activeUser && activeUser.role !== 'SUPERADMIN' && t.id !== activeUser.tenantId && !t.parentId) {
+        return { ...t, parentId: activeUser.tenantId };
+      }
+      return t;
+    });
+    setTenants(prev => {
+      const otherTenants = prev.filter(t => !allowedTenants.some(at => at.id === t.id));
+      return [...otherTenants, ...processed];
+    });
+  };
+
+  // Auto-correct active Tenant if it falls outside allowed list (for Admin multi-site isolation)
+  React.useEffect(() => {
+    if (activeUser && activeUser.role !== 'SUPERADMIN') {
+      const allowedIds = allowedTenants.map(t => t.id);
+      if (allowedIds.length > 0 && !allowedIds.includes(activeTenantId)) {
+        setActiveTenantId(allowedIds[0]);
+      }
+    }
+  }, [activeUser, allowedTenants, activeTenantId]);
 
   // Helper utility: Global Audit logging
   const logsAction = (action: string, module: string) => {
@@ -1048,13 +1421,42 @@ export default function App() {
     }
   };
 
+  const checkDemoLimits = (type: 'DISH' | 'INGREDIENT' | 'ORDER'): boolean => {
+    if (globalMode !== 'DEMO') return false;
+
+    if (type === 'DISH') {
+      const count = dishes.filter(d => d.tenantId === activeTenantId).length;
+      if (count >= 12) {
+        alert("⚠️ PROTECTION DE PRODUCTION (MODE DÉMO) :\n\nLa licence de démonstration gratuite est limitée à un maximum de 12 plats. Pour s'affranchir de cette limite, veuillez créer un Compte Réel Professionnel depuis la console d'administration ou contacter KissineFlow.");
+        return true;
+      }
+    }
+    if (type === 'INGREDIENT') {
+      const count = ingredients.filter(i => i.tenantId === activeTenantId).length;
+      if (count >= 15) {
+        alert("⚠️ PROTECTION DE PRODUCTION (MODE DÉMO) :\n\nLa licence de démonstration gratuite est limitée à un maximum de 15 ingrédients matières premières. Veuillez basculer en environnement de production réel ou contacter notre équipe d'assistance.");
+        return true;
+      }
+    }
+    if (type === 'ORDER') {
+      const count = orders.filter(o => o.tenantId === activeTenantId).length;
+      if (count >= 20) {
+        alert("⚠️ PROTECTION DE PRODUCTION (MODE DÉMO) :\n\nLa licence de démonstration gratuite est limitée à 20 tickets de caisse / commandes. Pour traiter des volumes réels dans votre restaurant, veuillez activer une clé de licence ou un compte client Pro.");
+        return true;
+      }
+    }
+    return false;
+  };
+
   // CALLBACK: Add new dish
   const handleAddDish = (dish: Dish) => {
+    if (checkDemoLimits('DISH')) return;
     setDishes(prev => [...prev, dish]);
   };
 
   // CALLBACK: Add new ingredient raw material
   const handleAddIngredient = (ing: Ingredient) => {
+    if (checkDemoLimits('INGREDIENT')) return;
     setIngredients(prev => [...prev, ing]);
   };
 
@@ -1304,7 +1706,7 @@ export default function App() {
 
   // CALLBACK: Self-service password modification
   const handleUpdateMyPassword = (newPass: string) => {
-    const updatedUsers = users.map(u => u.id === activeUserId ? { ...u, password: newPass } : u);
+    const updatedUsers = users.map(u => u.id === activeUserId ? { ...u, password: newPass, passwordChanged: true } : u);
     setUsers(updatedUsers);
     localStorage.setItem('erp-users', JSON.stringify(updatedUsers));
     logsAction(`Changement de mot de passe par l'utilisateur ${activeUser.name}`, 'SÉCURITÉ');
@@ -1312,6 +1714,7 @@ export default function App() {
 
   // CALLBACK: Validate and complete POS Cashier orders submissions 
   const handleAddOrder = (order: Order) => {
+    if (checkDemoLimits('ORDER')) return;
     setOrders(prev => [order, ...prev]);
   };
 
@@ -1417,42 +1820,200 @@ export default function App() {
   };
 
   // ----------------------------------------------------
+  // SUPERADMIN SECURE SUITE HANDLERS
+  // ----------------------------------------------------
+  const handleSuperAddTenant = (newTenant: Tenant, adminUser: User, prefill: boolean = true) => {
+    setTenants(prev => [...prev, newTenant]);
+    setUsers(prev => [...prev, adminUser]);
+
+    if (prefill) {
+      // 1. Prefill dishes
+      const dishIdMap: Record<string, string> = {};
+      const newDishes = initialDishes.map(d => {
+        const newId = `dish-${d.id.replace('dish-', '')}-${newTenant.id}`;
+        dishIdMap[d.id] = newId;
+        return {
+          ...d,
+          id: newId,
+          tenantId: newTenant.id
+        };
+      });
+
+      // 2. Prefill ingredients
+      const ingIdMap: Record<string, string> = {};
+      const newIngredients: Ingredient[] = initialIngredients.map(i => {
+        const newId = `ing-${i.id.replace('ing-', '')}-${newTenant.id}`;
+        ingIdMap[i.id] = newId;
+        return {
+          ...i,
+          id: newId,
+          tenantId: newTenant.id,
+          stockActual: i.stockActual > 0 ? i.stockActual : 50.0, // initial stock 50 units for easy demo
+          cmp: i.cmp || 1200
+        };
+      });
+
+      // 3. Prefill recipes
+      const newRecipes = initialRecipes.map(r => {
+        const newRecId = `recipe-${r.id.replace('recipe-', '')}-${newTenant.id}`;
+        const newDishId = dishIdMap[r.dishId] || r.dishId;
+        const newLines = r.lines.map(line => ({
+          ...line,
+          ingredientId: ingIdMap[line.ingredientId] || line.ingredientId
+        }));
+        return {
+          ...r,
+          id: newRecId,
+          dishId: newDishId,
+          lines: newLines,
+          tenantId: newTenant.id
+        };
+      });
+
+      // 4. Prefill suppliers
+      const newSuppliers = initialSuppliers.map(s => ({
+        ...s,
+        id: `supp-${s.id.replace('supp-', '')}-${newTenant.id}`,
+        tenantId: newTenant.id
+      }));
+
+      setDishes(prev => [...prev, ...newDishes]);
+      setIngredients(prev => [...prev, ...newIngredients]);
+      setRecipes(prev => [...prev, ...newRecipes]);
+      setSuppliers(prev => [...prev, ...newSuppliers]);
+    }
+
+    logsAction(`Création du client ${newTenant.name}, de son compte admin et pré-configuration du catalogue standard par le SuperAdmin`, 'SÉCURITÉ');
+  };
+
+  const handleSuperUpdateTenant = (updatedTenant: Tenant) => {
+    setTenants(prev => prev.map(t => t.id === updatedTenant.id ? updatedTenant : t));
+    logsAction(`Mise à jour des coordonnées du client ${updatedTenant.name} par le SuperAdmin`, 'SÉCURITÉ');
+  };
+
+  const handleSuperDeleteTenant = (tenantId: string) => {
+    const tName = tenants.find(t => t.id === tenantId)?.name || tenantId;
+    setTenants(prev => prev.filter(t => t.id !== tenantId));
+    setUsers(prev => prev.filter(u => u.tenantId !== tenantId));
+    logsAction(`Suppression du client ${tName} et de l'ensemble de ses collaborateurs par le SuperAdmin`, 'SÉCURITÉ');
+  };
+
+  const handleExportTenantData = (tenantId: string) => {
+    const tenantPayload = {
+      tenant: tenants.find(t => t.id === tenantId),
+      users: users.filter(u => u.tenantId === tenantId),
+      ingredients: ingredients.filter(i => i.tenantId === tenantId),
+      dishes: dishes.filter(d => d.tenantId === tenantId),
+      orders: orders.filter(o => o.tenantId === tenantId),
+      expenses: expenses.filter(e => e.tenantId === tenantId),
+      stockMovements: stockMovements.filter(m => m.tenantId === tenantId),
+      stockBatches: stockBatches.filter(b => b.tenantId === tenantId),
+      recipes: recipes.filter(r => r.tenantId === tenantId),
+      nonFoodItems: nonFoodItems.filter(nf => nf.tenantId === tenantId),
+      nonFoodMovements: nonFoodMovements.filter(nfm => nfm.tenantId === tenantId),
+      dailyClosures: dailyClosures.filter(dc => dc.tenantId === tenantId),
+      cashMovements: cashMovements.filter(cm => cm.tenantId === tenantId)
+    };
+    logsAction(`Export confidentiel de la base de données du client ${tenantId}`, 'SÉCURITÉ');
+    return tenantPayload;
+  };
+
+  const handleRestoreTenantData = (tenantId: string, importedData: any) => {
+    if (!importedData) return;
+    
+    const impIngs = Array.isArray(importedData.ingredients) ? importedData.ingredients : [];
+    const impDishes = Array.isArray(importedData.dishes) ? importedData.dishes : [];
+    const impOrders = Array.isArray(importedData.orders) ? importedData.orders : [];
+    const impExpenses = Array.isArray(importedData.expenses) ? importedData.expenses : [];
+    const impUsers = Array.isArray(importedData.users) ? importedData.users : [];
+    const impMovements = Array.isArray(importedData.stockMovements) ? importedData.stockMovements : [];
+    const impBatches = Array.isArray(importedData.stockBatches) ? importedData.stockBatches : [];
+    const impRecipes = Array.isArray(importedData.recipes) ? importedData.recipes : [];
+    const impNonFoodItems = Array.isArray(importedData.nonFoodItems) ? importedData.nonFoodItems : [];
+    const impNonFoodMovements = Array.isArray(importedData.nonFoodMovements) ? importedData.nonFoodMovements : [];
+    const impDailyClosures = Array.isArray(importedData.dailyClosures) ? importedData.dailyClosures : [];
+    const impCashMovements = Array.isArray(importedData.cashMovements) ? importedData.cashMovements : [];
+
+    setIngredients(prev => [...prev.filter(i => i.tenantId !== tenantId), ...impIngs]);
+    setDishes(prev => [...prev.filter(d => d.tenantId !== tenantId), ...impDishes]);
+    setOrders(prev => [...prev.filter(o => o.tenantId !== tenantId), ...impOrders]);
+    setExpenses(prev => [...prev.filter(e => e.tenantId !== tenantId), ...impExpenses]);
+    setUsers(prev => [...prev.filter(u => u.tenantId !== tenantId), ...impUsers]);
+    setStockMovements(prev => [...prev.filter(m => m.tenantId !== tenantId), ...impMovements]);
+    setStockBatches(prev => [...prev.filter(b => b.tenantId !== tenantId), ...impBatches]);
+    setRecipes(prev => [...prev.filter(r => r.tenantId !== tenantId), ...impRecipes]);
+    setNonFoodItems(prev => [...prev.filter(nf => nf.tenantId !== tenantId), ...impNonFoodItems]);
+    setNonFoodMovements(prev => [...prev.filter(nfm => nfm.tenantId !== tenantId), ...impNonFoodMovements]);
+    setDailyClosures(prev => [...prev.filter(dc => dc.tenantId !== tenantId), ...impDailyClosures]);
+    setCashMovements(prev => [...prev.filter(cm => cm.tenantId !== tenantId), ...impCashMovements]);
+
+    logsAction(`Restauration complète de la base de données du client ${tenantId}`, 'SÉCURITÉ');
+  };
+
+  // ----------------------------------------------------
   // EXPERT SECURITY ROLE AND ACCESS PERMISSIONS (RBAC)
   // ----------------------------------------------------
   const hasAccessToTab = (tab: typeof activeTab) => {
-    // If the user has custom allowedModules explicitly specified, we respect that list!
+    if (activeUser.role === 'SUPERADMIN') return true;
+    if (activeUser.role === 'ADMIN') return true;
+    if (tab === 'ABOUT' || tab === 'SETTINGS') return true;
+
+    // Direct check of custom granular permissions if available
+    if (activeUser.permissions) {
+      const modIdMap: Record<string, string> = {
+        'DASHBOARD': 'DASHBOARD',
+        'POS': 'POS',
+        'ORDERS': 'ORDERS',
+        'CATALOGUE': 'CATALOGUE',
+        'MENUS': 'CATALOGUE',
+        'STOCKS': 'STOCKS',
+        'PURCHASES': 'PURCHASES',
+        'ACCOUNTING': 'ACCOUNTING',
+        'FINANCE': 'FINANCE',
+        'BILAN': 'BILAN',
+        'NON_FOOD': 'NON_FOOD',
+        'PRESTATIONS': 'PRESTATIONS',
+        'ADMIN': 'ADMINISTRATION'
+      };
+      const modId = modIdMap[tab];
+      if (modId && activeUser.permissions[modId]) {
+        return !!activeUser.permissions[modId].read;
+      }
+    }
+
+    // Fallback allowedModules checklist
     if (activeUser.allowedModules && activeUser.allowedModules.length > 0) {
       return activeUser.allowedModules.includes(tab);
     }
 
     const role = activeUser.role;
-    if (role === 'ADMIN' || role === 'MANAGER') return true; // full global visibility
-    
     switch (tab) {
       case 'DASHBOARD':
-        return role === 'ACCOUNTING' || role === 'ADMIN' || role === 'MANAGER';
+        return role === 'ACCOUNTING' || role === 'MANAGER';
       case 'POS':
-        return role === 'CASHIER' || role === 'ADMIN' || role === 'MANAGER';
+        return role === 'CASHIER' || role === 'MANAGER';
       case 'ORDERS':
-        return role === 'CASHIER' || role === 'ADMIN' || role === 'MANAGER';
+        return role === 'CASHIER' || role === 'MANAGER';
       case 'CATALOGUE':
-        return role === 'ADMIN' || role === 'MANAGER';
+        return role === 'MANAGER';
+      case 'MENUS':
+        return role === 'MANAGER' || role === 'CASHIER';
       case 'STOCKS':
-        return role === 'WAREHOUSE' || role === 'ADMIN' || role === 'MANAGER';
+        return role === 'WAREHOUSE' || role === 'MANAGER';
       case 'PURCHASES':
-        return role === 'WAREHOUSE' || role === 'ADMIN' || role === 'MANAGER';
+        return role === 'WAREHOUSE' || role === 'MANAGER';
       case 'ACCOUNTING':
-        return role === 'ACCOUNTING' || role === 'ADMIN' || role === 'MANAGER';
+        return role === 'ACCOUNTING' || role === 'MANAGER';
       case 'FINANCE':
-        return role === 'ACCOUNTING' || role === 'ADMIN' || role === 'MANAGER';
+        return role === 'ACCOUNTING' || role === 'MANAGER';
       case 'BILAN':
-        return role === 'ACCOUNTING' || role === 'ADMIN' || role === 'MANAGER';
+        return role === 'ACCOUNTING' || role === 'MANAGER';
       case 'ADMIN':
-        return role === 'ADMIN';
-      case 'SETTINGS':
-        return role === 'ADMIN' || role === 'MANAGER';
+        return false; // Reserved to local ADMIN
       case 'PRESTATIONS':
-        return role === 'ACCOUNTING' || role === 'ADMIN' || role === 'MANAGER';
+        return role === 'ACCOUNTING' || role === 'MANAGER';
+      case 'NON_FOOD':
+        return role === 'WAREHOUSE' || role === 'MANAGER';
       default:
         return false;
     }
@@ -1475,7 +2036,11 @@ export default function App() {
   };
 
   if (!isUnlocked) {
-    const activeUser = users.find(u => u.id === activeUserId) || users[0];
+    const matchedUser = users.find(u => 
+      u.email.toLowerCase().trim() === loginIdentifier.toLowerCase().trim() ||
+      u.name.toLowerCase().trim() === loginIdentifier.toLowerCase().trim()
+    );
+
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center font-sans selection:bg-slate-800 antialiased text-gray-100 p-4" id="kissineflow-lockscreen">
         <div className="max-w-md w-full bg-slate-950 p-8 border border-slate-850 rounded-2xl shadow-2xl space-y-6 relative overflow-hidden">
@@ -1490,37 +2055,76 @@ export default function App() {
             <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/25 px-2 py-0.5 rounded font-mono font-black uppercase tracking-wider block mt-1">
               Terminal Sécurisé d'Exploitation
             </span>
+            <p className="text-[11px] text-slate-400 leading-relaxed font-normal mt-2 max-w-sm">
+              <span className="text-white font-semibold">KISSINE FLOW™</span> est une solution complète de gestion de restauration conçue pour centraliser et optimiser les opérations quotidiennes : de la prise de commande à l'analyse financière, en passant par la gestion des stocks, la caisse et le suivi des dépenses.
+            </p>
+          </div>
+
+          {/* SaaS MODE SWITCHER DIRECTLY ON THE SECURED TERMINAL LOCKSCREEN */}
+          <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80 space-y-1.5 shadow-inner">
+            <div className="flex items-center justify-between text-[10px] text-slate-400 font-extrabold uppercase tracking-widest px-1">
+              <span>Réseau d'Échanges Actif</span>
+              <span className={`h-2 w-2 rounded-full animate-ping ${globalMode === 'DEMO' ? 'bg-blue-400' : 'bg-emerald-400'}`}></span>
+            </div>
+            <div className="flex items-center bg-slate-950 rounded-lg p-0.5 border border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.setItem('erp-global-mode', 'DEMO');
+                  // Flush session/local storage for lock state on mode toggle to reload correctly
+                  localStorage.setItem('erp-active-user-id', 'user-admin');
+                  localStorage.setItem('erp-active-tenant-id', 'tenant-douala');
+                  window.location.reload();
+                }}
+                className={`flex-1 text-center py-2 rounded-md text-[9px] uppercase tracking-wider font-mono font-black transition-all duration-150 cursor-pointer ${
+                  globalMode === 'DEMO'
+                    ? 'bg-blue-600/90 text-white shadow-md border border-blue-500/30'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                🎮 Mode Démo
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.setItem('erp-global-mode', 'CLIENT');
+                  // Use superadmin or empty client setup so they are prompted correctly
+                  localStorage.setItem('erp-active-user-id', 'user-superadmin');
+                  localStorage.setItem('erp-active-tenant-id', 'superadmin');
+                  window.location.reload();
+                }}
+                className={`flex-1 text-center py-2 rounded-md text-[9px] uppercase tracking-wider font-mono font-black transition-all duration-150 cursor-pointer ${
+                  globalMode === 'CLIENT'
+                    ? 'bg-emerald-600/95 text-white shadow-md border border-emerald-500/30'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                💼 Mode Client Resto
+              </button>
+            </div>
           </div>
 
           <form onSubmit={handleUnlockApp} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-350 font-bold block">Sélectionnez votre Profil d'Utilisateur</label>
-              <select
+              <label className="text-xs text-slate-350 font-bold block">Identifiant ou Profil d'Utilisation</label>
+              <input
+                type="text"
                 id="lockscreen-user-select"
-                value={activeUserId}
+                placeholder="Saisissez votre e-mail ou nom d'utilisateur"
+                value={loginIdentifier}
                 onChange={(e) => {
-                  setActiveUserId(e.target.value);
+                  setLoginIdentifier(e.target.value);
                   setPasswordError('');
-                  setPasswordInput('');
                 }}
-                className="w-full px-3 py-2.5 bg-slate-900 border border-slate-750 text-slate-100 rounded-lg text-xs font-bold focus:outline-none focus:border-blue-500 cursor-pointer"
-              >
-                {tenants.map(t => {
-                  const tenantUsers = users.filter(u => u.tenantId === t.id);
-                  if (tenantUsers.length === 0) return null;
-                  return (
-                    <optgroup key={t.id} label={`Collaborateurs ${t.name} (${t.city})`}>
-                      {tenantUsers.map(u => (
-                        <option key={u.id} value={u.id} className="bg-slate-950 text-white font-bold">{u.name} ({u.role})</option>
-                      ))}
-                    </optgroup>
-                  );
-                })}
-              </select>
+                className="w-full px-3 py-2.5 bg-slate-900 border border-slate-750 text-slate-100 rounded-lg text-xs font-bold focus:outline-none focus:border-blue-500 placeholder-slate-550"
+                required
+              />
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs text-slate-300 font-bold block">Saisissez le mot de passe de {activeUser.name}</label>
+              <label className="text-xs text-slate-300 font-bold block">
+                Saisissez votre mot de passe {matchedUser ? `pour ${matchedUser.name}` : ''}
+              </label>
               <div className="relative">
                 <input
                   id="lockscreen-password-input"
@@ -1530,6 +2134,7 @@ export default function App() {
                   onChange={(e) => setPasswordInput(e.target.value)}
                   className="w-full pl-3 pr-10 py-3 bg-slate-900 border border-slate-750 rounded-lg text-sm text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono tracking-widest text-center"
                   autoFocus
+                  required
                 />
                 <button
                   type="button"
@@ -1546,12 +2151,6 @@ export default function App() {
                 {passwordError}
               </p>
             )}
-
-            {/* Demo guidance so they can test easily */}
-            <div className="text-[10px] text-amber-300 bg-amber-950/20 border border-amber-900/35 p-2.5 rounded-lg leading-relaxed select-none">
-              <p className="font-extrabold text-amber-400">💡 Indication de démonstration :</p>
-              <p className="text-amber-200 mt-0.5">Le mot de passe de <span className="font-bold">{activeUser.name}</span> est : <code className="bg-amber-950/40 px-1.5 py-0.5 rounded font-bold font-mono text-amber-300">{activeUser.password || 'password123'}</code></p>
-            </div>
 
             <div className="flex items-center justify-between text-xs py-1">
               <label className="flex items-center gap-1.5 cursor-pointer text-slate-400 hover:text-slate-300 select-none">
@@ -1571,18 +2170,140 @@ export default function App() {
             >
               Déverrouiller le Terminal
             </button>
+
+            <div className="relative my-3 flex py-1 items-center">
+              <div className="flex-grow border-t border-slate-800"></div>
+              <span className="flex-shrink mx-3 text-[9px] text-slate-500 font-extrabold uppercase tracking-widest select-none">OU</span>
+              <div className="flex-grow border-t border-slate-800"></div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.setItem('erp-global-mode', 'DEMO');
+                localStorage.setItem('app-unlocked', 'true');
+                localStorage.setItem('erp-active-user-id', 'user-admin');
+                localStorage.setItem('erp-active-tenant-id', 'tenant-douala');
+                window.location.reload();
+              }}
+              className="w-full py-2.5 bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white rounded-lg text-xs font-extrabold font-sans tracking-wider uppercase transition shadow-lg active:translate-y-px cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Sparkles className="h-4 w-4 text-yellow-350 animate-pulse" />
+              <span>Accéder directement au Mode Démo</span>
+            </button>
           </form>
 
           <div className="border-t border-slate-850 pt-4 text-center">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-slate-800 text-[11px] text-slate-400 rounded-full font-mono">
-              <span className="text-yellow-500 font-bold uppercase tracking-widest text-[9px] px-1.5 py-0.5 bg-yellow-400/10 rounded mr-0.5 border border-yellow-500/25">Clé</span>
-              <span>Clé Maître Admin : <span className="text-slate-200 font-bold font-mono">{appPassword}</span></span>
-            </div>
-            <p className="text-[10px] text-slate-500 mt-2.5">
-              Vous pouvez personnaliser le mot de passe maître de déverrouillage depuis les Paramètres locaux de l'établissement.
+            <p className="text-[10px] text-slate-500 leading-relaxed font-semibold">
+              Rapprochement confidentiel par chiffrement asymétrique local. KisssineFlow 2026. Tous droits réservés.
             </p>
           </div>
         </div>
+
+        {/* MANDATORY FIRST-LOGIN PASSWORD RESET MODAL */}
+        {mustChangePasswordUser && (
+          <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex items-center justify-center p-4 shadow-2xl">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-gray-200 shadow-2xl relative space-y-4 text-slate-800 text-left">
+              <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-red-500 via-amber-500 to-indigo-500 rounded-t-2xl"></div>
+              
+              <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-2">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-amber-50 text-amber-800 rounded-full">
+                    <LockKeyhole className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-gray-900 font-sans uppercase tracking-wider">
+                      🔑 Initialisation Obligatoire de Sécurité
+                    </h3>
+                    <p className="text-[11px] text-gray-500 font-semibold mt-0.5">
+                      Première connexion au restaurant KisssineFlow ERP
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMustChangePasswordUser(null);
+                    setMustChangeNewPass('');
+                    setMustChangeConfirm('');
+                    setMustChangeError('');
+                  }}
+                  className="p-1 text-gray-400 hover:text-gray-650 transition"
+                  title="Annuler"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 text-xs text-blue-900 space-y-1 leading-relaxed">
+                <p className="font-extrabold">🚨 Consignes d'exploitation du SuperAdmin :</p>
+                <p className="font-semibold text-gray-650">
+                  Par mesure de sécurité renforcée pour votre infrastructure, vous devez remplacer le mot de passe provisoire attribué lors de la création de votre compte client.
+                </p>
+              </div>
+
+              <form onSubmit={handleSaveMustChangePassword} className="space-y-4 text-xs font-semibold text-left">
+                <div className="space-y-1">
+                  <label className="text-gray-600 block font-bold">Nouveau Mot de Passe Extrême *</label>
+                  <input
+                    type="password"
+                    placeholder="Minimum 4 caractères"
+                    value={mustChangeNewPass}
+                    onChange={(e) => {
+                      setMustChangeNewPass(e.target.value);
+                      setMustChangeError('');
+                    }}
+                    className="w-full p-3 border rounded border-gray-300 bg-slate-50 font-mono tracking-widest text-center text-gray-950 focus:outline-none focus:border-indigo-600 font-bold"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-gray-600 block font-bold">Confirmer Nouveau Mot de Passe *</label>
+                  <input
+                    type="password"
+                    placeholder="Ressaisissez à l'identique"
+                    value={mustChangeConfirm}
+                    onChange={(e) => {
+                      setMustChangeConfirm(e.target.value);
+                      setMustChangeError('');
+                    }}
+                    className="w-full p-3 border rounded border-gray-300 bg-slate-50 font-mono tracking-widest text-center text-gray-950 focus:outline-none focus:border-indigo-600 font-bold"
+                    required
+                  />
+                </div>
+
+                {mustChangeError && (
+                  <div className="p-2.5 rounded-lg bg-rose-50 text-rose-800 text-center text-[11px] font-bold border border-rose-100 uppercase animate-bounce">
+                    ⚠️ {mustChangeError}
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMustChangePasswordUser(null);
+                      setMustChangeNewPass('');
+                      setMustChangeConfirm('');
+                      setMustChangeError('');
+                    }}
+                    className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-extrabold rounded-xl transition duration-150 cursor-pointer text-xs uppercase tracking-wider"
+                  >
+                    Retour
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-[2] py-3 bg-slate-900 hover:bg-slate-800 text-white font-extrabold rounded-xl transition duration-150 flex items-center justify-center gap-2 cursor-pointer shadow-md text-xs uppercase tracking-wider animate-pulse"
+                  >
+                    <Check className="h-4 w-4 text-emerald-400" />
+                    <span>Modifier & Ouvrir</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1592,82 +2313,120 @@ export default function App() {
       
       {/* SaaS UTILITY SUPER-BAR (Tenant & Roles toggle controls) */}
       <div className="bg-gray-900 text-gray-300 text-xs px-4 py-2.5 flex flex-wrap gap-4 items-center justify-between border-b border-gray-800 shrink-0 select-none z-40">
-        <div className="flex items-center gap-2 font-mono" id="saas-system-badge">
-          <Database className="h-4 w-4 text-blue-400" />
-          <span className="font-bold text-gray-200 uppercase tracking-widest text-[11px]">KissineFlow ERP SaaS Workspace</span>
+        <div className="flex items-center gap-3 font-mono flex-wrap" id="saas-system-badge">
+          <Database className="h-4 w-4 text-orange-400" />
+          <span className="font-bold text-gray-200 uppercase tracking-wider text-[11px]">KissineFlow ERP SaaS Workspace</span>
+          
+          {/* HIGH-FIDELITY MODE SWITCHER TAB SLIDER */}
+          <div className="flex items-center bg-slate-950 rounded-full p-0.5 border border-slate-800 shadow-inner">
+            <button
+              onClick={() => globalMode !== 'DEMO' && handleSwitchMode('DEMO')}
+              className={`px-3 py-1 rounded-full text-[9px] uppercase tracking-wider font-extrabold transition-all duration-150 cursor-pointer ${
+                globalMode === 'DEMO'
+                  ? 'bg-blue-600 text-white shadow font-black'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              Mode Démo
+            </button>
+            <button
+              onClick={() => globalMode !== 'CLIENT' && handleSwitchMode('CLIENT')}
+              className={`px-3 py-1 rounded-full text-[9px] uppercase tracking-wider font-extrabold transition-all duration-150 cursor-pointer ${
+                globalMode === 'CLIENT'
+                  ? 'bg-emerald-600 text-white shadow font-black'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              Mode Client (Vide)
+            </button>
+          </div>
         </div>
 
         {/* CONTROLS AREA */}
         <div id="saas-switchers" className="flex items-center gap-4 flex-wrap">
-          {/* Tenant Selector (SaaS Multi sites Multi locations - Dynamic) */}
-          <div className="flex items-center gap-1.5" id="tenant-picker">
-            <span className="text-[10px] text-gray-400 uppercase font-semibold">Site Opérationnel :</span>
-            <select
-              id="tenant-select"
-              value={activeTenantId}
-              disabled={activeUser?.role !== 'ADMIN'}
-              onChange={(e) => {
-                setActiveTenantId(e.target.value);
-                // switch to first user of of this site if the role is admin and switching sites
-                const siteUsers = users.filter(u => u.tenantId === e.target.value);
-                const adminForSite = siteUsers.find(u => u.role === 'ADMIN');
-                if (adminForSite) {
-                  setActiveUserId(adminForSite.id);
-                } else if (siteUsers.length > 0) {
-                  setActiveUserId(siteUsers[0].id);
-                }
-              }}
-              className={`bg-gray-800 text-gray-100 p-1 border border-gray-700 text-[11px] rounded font-bold ${
-                activeUser?.role !== 'ADMIN' ? 'opacity-65 cursor-not-allowed' : 'cursor-pointer'
-              } focus:outline-none`}
-              title={activeUser?.role !== 'ADMIN' ? "Seul l'Admin peut naviguer d'un site à un autre" : "Choisir un site opérationnel"}
-            >
-              {tenants.map(t => (
-                <option key={t.id} value={t.id} className="bg-gray-905 text-white font-bold">📍 {t.name} ({t.city})</option>
-              ))}
-            </select>
-            {activeUser?.role !== 'ADMIN' && (
-              <span className="text-[9px] bg-red-950 text-red-400 px-1 py-0.5 rounded border border-red-800/30" title="Votre compte est affilié à ce site unique">Restreint</span>
-            )}
-          </div>
+          {activeUser?.role === 'SUPERADMIN' ? (
+            <div className="flex items-center gap-2 mr-4 bg-orange-600/10 border border-orange-500/20 px-3.5 py-1.5 rounded-lg">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+              </span>
+              <span className="text-[10px] text-orange-400 font-black tracking-wider uppercase font-mono">
+                Mode : Console de Contrôle & Diagnostic ERP Général
+              </span>
+            </div>
+          ) : (
+            <>
+              {/* Tenant Selector (SaaS Multi sites Multi locations - Dynamic) */}
+              <div className="flex items-center gap-1.5" id="tenant-picker">
+                <span className="text-[10px] text-gray-400 uppercase font-semibold">Site Opérationnel :</span>
+                <select
+                  id="tenant-select"
+                  value={activeTenantId}
+                  disabled={activeUser?.role !== 'ADMIN'}
+                  onChange={(e) => {
+                    setActiveTenantId(e.target.value);
+                    // switch to first user of of this site if the role is admin and switching sites
+                    const siteUsers = users.filter(u => u.tenantId === e.target.value && u.role !== 'SUPERADMIN');
+                    const adminForSite = siteUsers.find(u => u.role === 'ADMIN');
+                    if (adminForSite) {
+                      setActiveUserId(adminForSite.id);
+                    } else if (siteUsers.length > 0) {
+                      setActiveUserId(siteUsers[0].id);
+                    }
+                  }}
+                  className={`bg-gray-800 text-gray-100 p-1 border border-gray-700 text-[11px] rounded font-bold ${
+                    activeUser?.role !== 'ADMIN' ? 'opacity-65 cursor-not-allowed' : 'cursor-pointer'
+                  } focus:outline-none`}
+                  title={activeUser?.role !== 'ADMIN' ? "Seul l'Admin peut naviguer d'un site à un autre" : "Choisir un site opérationnel"}
+                >
+                  {allowedTenants.map(t => (
+                    <option key={t.id} value={t.id} className="bg-gray-905 text-white font-bold">📍 {t.name} ({t.city})</option>
+                  ))}
+                </select>
+                {activeUser?.role !== 'ADMIN' && (
+                  <span className="text-[9px] bg-red-950 text-red-400 px-1 py-0.5 rounded border border-red-800/30" title="Votre compte est affilié à ce site unique">Restreint</span>
+                )}
+              </div>
 
-          <div className="h-4 w-[1px] bg-gray-800 hidden sm:block"></div>
+              <div className="h-4 w-[1px] bg-gray-800 hidden sm:block"></div>
 
-          {/* Actor RBAC Role switcher */}
-          <div className="flex items-center gap-1.5" id="user-role-picker">
-            <span className="text-[10px] text-yellow-500 uppercase tracking-wider font-extrabold bg-yellow-500/10 px-2 py-1 rounded border border-yellow-500/25 flex items-center gap-1">
-              <UserCheck className="h-3.5 w-3.5" />
-              Profil Actif :
-            </span>
-            <select
-              id="user-select"
-              value={activeUserId}
-              onChange={(e) => {
-                const targetId = e.target.value;
-                if (targetId === activeUserId) return;
-                
-                setPendingUserId(targetId);
-                setPendingPasswordInput('');
-                setPendingPasswordError('');
-                setShowPendingPassword(false);
-              }}
-              className="bg-gray-800 text-gray-100 p-1 border border-gray-700 text-[11px] rounded font-bold cursor-pointer focus:outline-none"
-            >
-              {tenants.map(t => {
-                const tenantUsers = users.filter(u => u.tenantId === t.id);
-                if (tenantUsers.length === 0) return null;
-                return (
-                  <optgroup key={t.id} label={`Collaborateurs ${t.name} (${t.city})`}>
-                    {tenantUsers.map(u => (
-                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                    ))}
-                  </optgroup>
-                );
-              })}
-            </select>
-          </div>
+              {/* Actor RBAC Role switcher */}
+              <div className="flex items-center gap-1.5" id="user-role-picker">
+                <span className="text-[10px] text-yellow-500 uppercase tracking-wider font-extrabold bg-yellow-500/10 px-2 py-1 rounded border border-yellow-500/25 flex items-center gap-1">
+                  <UserCheck className="h-3.5 w-3.5" />
+                  Profil Actif :
+                </span>
+                <select
+                  id="user-select"
+                  value={activeUserId}
+                  onChange={(e) => {
+                    const targetId = e.target.value;
+                    if (targetId === activeUserId) return;
+                    
+                    setPendingUserId(targetId);
+                    setPendingPasswordInput('');
+                    setPendingPasswordError('');
+                    setShowPendingPassword(false);
+                  }}
+                  className="bg-gray-800 text-gray-100 p-1 border border-gray-700 text-[11px] rounded font-bold cursor-pointer focus:outline-none"
+                >
+                  {allowedTenants.map(t => {
+                    const tenantUsers = users.filter(u => u.tenantId === t.id && u.role !== 'SUPERADMIN');
+                    if (tenantUsers.length === 0) return null;
+                    return (
+                      <optgroup key={t.id} label={`Collaborateurs ${t.name} (${t.city})`}>
+                        {tenantUsers.map(u => (
+                          <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                </select>
+              </div>
 
-          <div className="h-4 w-[1px] bg-gray-800"></div>
+              <div className="h-4 w-[1px] bg-gray-800"></div>
+            </>
+          )}
 
           {/* Action lock button */}
           <button
@@ -1680,6 +2439,19 @@ export default function App() {
           </button>
         </div>
       </div>
+
+      {/* DEMO MODE WARNING BANNER */}
+      {globalMode === 'DEMO' && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 text-amber-800 text-[11px] px-6 py-2.5 flex items-center justify-between gap-3 font-semibold select-none flex-wrap shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="bg-amber-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">MODE DÉMO LIMITÉ</span>
+            <span>Vous explorez en environnement de démonstration. Les limitations de production sont actives : plafonds de 12 plats et 15 ingrédients max, réinitialisation quotidienne.</span>
+          </div>
+          <div className="text-[10px] bg-amber-600/10 text-amber-800 px-2 py-0.5 rounded border border-amber-600/20 font-bold uppercase tracking-wider">
+            Évaluation Confidentielle
+          </div>
+        </div>
+      )}
 
       {/* CORE FRAMEWORK WORKSPACE */}
       <div className="flex-1 flex flex-col md:flex-row min-h-0 relative">
@@ -1705,109 +2477,157 @@ export default function App() {
 
             {/* Nav anchors */}
             <nav className="flex flex-col gap-1">
-              <button onClick={() => setActiveTab('DASHBOARD')} className={sidebarItemClass('DASHBOARD')}>
-                <span className="flex items-center gap-2.5">
-                  <LayoutDashboard className="h-4 w-4" />
-                  Tableau de Bord BI
-                </span>
-                <ChevronRight className="h-3 w-3 opacity-50" />
-              </button>
+              {activeUser.role === 'SUPERADMIN' ? (
+                <>
+                  <button 
+                    onClick={() => setActiveTab('SUPERADMIN')} 
+                    className={`w-full px-4 py-3 rounded-lg text-xs leading-none flex items-center justify-between transition-all cursor-pointer ${
+                      activeTab === 'SUPERADMIN'
+                        ? 'bg-rose-950 text-rose-200 shadow-xs font-extrabold border-l-4 border-rose-500'
+                        : 'text-rose-700 hover:bg-rose-50 font-bold'
+                    }`}
+                    id="sidebar-superadmin-anchor"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <ShieldCheck className="h-4 w-4 text-rose-500 animate-pulse" />
+                      <strong>Console SuperAdmin</strong>
+                    </span>
+                    <span className="bg-rose-100 text-rose-800 text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase">Master</span>
+                  </button>
 
-              <button onClick={() => setActiveTab('POS')} className={sidebarItemClass('POS')} id="sidebar-pos-anchor">
-                <span className="flex items-center gap-2.5">
-                  <Calculator className="h-4 w-4" />
-                  Caisse Tactile POS
-                </span>
-                <span className="px-1.5 py-0.3 bg-yellow-400 text-slate-950 font-mono text-[9px] font-bold rounded">Live</span>
-              </button>
+                  <button onClick={() => setActiveTab('ABOUT')} className={sidebarItemClass('ABOUT')} id="sidebar-about-anchor">
+                    <span className="flex items-center gap-2.5">
+                      <Sparkles className="h-4 w-4 text-amber-500" />
+                      A Propos : KISSINE FLOW™
+                    </span>
+                    <ChevronRight className="h-3 w-3 opacity-50" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => setActiveTab('DASHBOARD')} className={sidebarItemClass('DASHBOARD')}>
+                    <span className="flex items-center gap-2.5">
+                      <LayoutDashboard className="h-4 w-4" />
+                      Tableau de Bord BI
+                    </span>
+                    <ChevronRight className="h-3 w-3 opacity-50" />
+                  </button>
 
-              <button onClick={() => setActiveTab('ORDERS')} className={sidebarItemClass('ORDERS')}>
-                <span className="flex items-center gap-2.5">
-                  <ShoppingBag className="h-4 w-4" />
-                  Commandes tickets
-                </span>
-                <ChevronRight className="h-3 w-3 opacity-50" />
-              </button>
+                  <button onClick={() => setActiveTab('POS')} className={sidebarItemClass('POS')} id="sidebar-pos-anchor">
+                    <span className="flex items-center gap-2.5">
+                      <Calculator className="h-4 w-4" />
+                      Caisse Tactile POS
+                    </span>
+                    <span className="px-1.5 py-0.3 bg-yellow-400 text-slate-950 font-mono text-[9px] font-bold rounded">Live</span>
+                  </button>
 
-              <button onClick={() => setActiveTab('CATALOGUE')} className={sidebarItemClass('CATALOGUE')}>
-                <span className="flex items-center gap-2.5">
-                  <ListCollapse className="h-4 w-4" />
-                  Catalogue & Filles Recettes
-                </span>
-                <ChevronRight className="h-3 w-3 opacity-50" />
-              </button>
+                  <button onClick={() => setActiveTab('ORDERS')} className={sidebarItemClass('ORDERS')}>
+                    <span className="flex items-center gap-2.5">
+                      <ShoppingBag className="h-4 w-4" />
+                      Commandes tickets
+                    </span>
+                    <ChevronRight className="h-3 w-3 opacity-50" />
+                  </button>
 
-              <button onClick={() => setActiveTab('STOCKS')} className={sidebarItemClass('STOCKS')}>
-                <span className="flex items-center gap-2.5">
-                  <Layers className="h-4 w-4" />
-                  Actifs & Valorisation Stock
-                </span>
-                <ChevronRight className="h-3 w-3 opacity-50" />
-              </button>
+                  <button onClick={() => setActiveTab('CATALOGUE')} className={sidebarItemClass('CATALOGUE')}>
+                    <span className="flex items-center gap-2.5">
+                      <ListCollapse className="h-4 w-4" />
+                      Catalogue & Filles Recettes
+                    </span>
+                    <ChevronRight className="h-3 w-3 opacity-50" />
+                  </button>
 
-              <button onClick={() => setActiveTab('PURCHASES')} className={sidebarItemClass('PURCHASES')}>
-                <span className="flex items-center gap-2.5">
-                  <Truck className="h-4 w-4" />
-                  Chaîne d'Achat (BC / BL)
-                </span>
-                <ChevronRight className="h-3 w-3 opacity-50" />
-              </button>
+                  {hasAccessToTab('MENUS') && (
+                    <button onClick={() => setActiveTab('MENUS')} className={sidebarItemClass('MENUS')} id="sidebar-menus-anchor">
+                      <span className="flex items-center gap-2.5">
+                        <ChefHat className="h-4 w-4 text-amber-500" />
+                        Gestion de Menu du Jour
+                      </span>
+                      <ChevronRight className="h-3 w-3 opacity-50" />
+                    </button>
+                  )}
 
-              <button onClick={() => setActiveTab('ACCOUNTING')} className={sidebarItemClass('ACCOUNTING')}>
-                <span className="flex items-center gap-2.5">
-                  <Coins className="h-4 w-4" />
-                  Compta & Clôtures Actives
-                </span>
-                <ChevronRight className="h-3 w-3 opacity-50" />
-              </button>
+                  <button onClick={() => setActiveTab('STOCKS')} className={sidebarItemClass('STOCKS')}>
+                    <span className="flex items-center gap-2.5">
+                      <Layers className="h-4 w-4" />
+                      Actifs & Valorisation Stock
+                    </span>
+                    <ChevronRight className="h-3 w-3 opacity-50" />
+                  </button>
 
-              <button onClick={() => setActiveTab('FINANCE')} className={sidebarItemClass('FINANCE')} id="sidebar-finance-anchor">
-                <span className="flex items-center gap-2.5">
-                  <Coins className="h-4 w-4 text-emerald-600" />
-                  Gestion Dépenses & Finance
-                </span>
-                <ChevronRight className="h-3 w-3 opacity-50" />
-              </button>
+                  <button onClick={() => setActiveTab('NON_FOOD')} className={sidebarItemClass('NON_FOOD')} id="sidebar-nonfood-anchor">
+                    <span className="flex items-center gap-2.5">
+                      <Package className="h-4 w-4 text-sky-600" />
+                      Hors-Alimentation (Non-Food)
+                    </span>
+                    <ChevronRight className="h-3 w-3 opacity-50" />
+                  </button>
 
-              <button onClick={() => setActiveTab('BILAN')} className={sidebarItemClass('BILAN')} id="sidebar-bilan-anchor">
-                <span className="flex items-center gap-2.5">
-                  <Building2 className="h-4 w-4 text-purple-600" />
-                  Compte de Résultat & Bilan
-                </span>
-                <ChevronRight className="h-3 w-3 opacity-50" />
-              </button>
+                  <button onClick={() => setActiveTab('PURCHASES')} className={sidebarItemClass('PURCHASES')}>
+                    <span className="flex items-center gap-2.5">
+                      <Truck className="h-4 w-4" />
+                      Chaîne d'Achat (BC / BL)
+                    </span>
+                    <ChevronRight className="h-3 w-3 opacity-50" />
+                  </button>
 
-              <button onClick={() => setActiveTab('PRESTATIONS')} className={sidebarItemClass('PRESTATIONS')} id="sidebar-prestations-anchor">
-                <span className="flex items-center gap-2.5">
-                  <UtensilsCrossed className="h-4 w-4 text-orange-600" />
-                  Prestations & Objectifs
-                </span>
-                <ChevronRight className="h-3 w-3 opacity-50" />
-              </button>
+                  <button onClick={() => setActiveTab('ACCOUNTING')} className={sidebarItemClass('ACCOUNTING')}>
+                    <span className="flex items-center gap-2.5">
+                      <Coins className="h-4 w-4" />
+                      Compta & Clôtures Actives
+                    </span>
+                    <ChevronRight className="h-3 w-3 opacity-50" />
+                  </button>
 
-              <button onClick={() => setActiveTab('ADMIN')} className={sidebarItemClass('ADMIN')}>
-                <span className="flex items-center gap-2.5">
-                  <ShieldCheck className="h-4 w-4" />
-                  Administration audits
-                </span>
-                <ChevronRight className="h-3 w-3 opacity-50" />
-              </button>
+                  <button onClick={() => setActiveTab('FINANCE')} className={sidebarItemClass('FINANCE')} id="sidebar-finance-anchor">
+                    <span className="flex items-center gap-2.5">
+                      <Coins className="h-4 w-4 text-emerald-600" />
+                      Gestion Dépenses & Finance
+                    </span>
+                    <ChevronRight className="h-3 w-3 opacity-50" />
+                  </button>
 
-              <button onClick={() => setActiveTab('SETTINGS')} className={sidebarItemClass('SETTINGS')} id="sidebar-settings-anchor">
-                <span className="flex items-center gap-2.5">
-                  <Settings className="h-4 w-4" />
-                  Paramètres Système
-                </span>
-                <ChevronRight className="h-3 w-3 opacity-50" />
-              </button>
+                  <button onClick={() => setActiveTab('BILAN')} className={sidebarItemClass('BILAN')} id="sidebar-bilan-anchor">
+                    <span className="flex items-center gap-2.5">
+                      <Building2 className="h-4 w-4 text-purple-600" />
+                      Compte de Résultat & Bilan
+                    </span>
+                    <ChevronRight className="h-3 w-3 opacity-50" />
+                  </button>
 
-              <button onClick={() => setActiveTab('ABOUT')} className={sidebarItemClass('ABOUT')} id="sidebar-about-anchor">
-                <span className="flex items-center gap-2.5">
-                  <Sparkles className="h-4 w-4 text-amber-500" />
-                  A Propos : KISSINE FLOW™
-                </span>
-                <ChevronRight className="h-3 w-3 opacity-50" />
-              </button>
+                  <button onClick={() => setActiveTab('PRESTATIONS')} className={sidebarItemClass('PRESTATIONS')} id="sidebar-prestations-anchor">
+                    <span className="flex items-center gap-2.5">
+                      <UtensilsCrossed className="h-4 w-4 text-orange-600" />
+                      Prestations & Objectifs
+                    </span>
+                    <ChevronRight className="h-3 w-3 opacity-50" />
+                  </button>
+
+                  <button onClick={() => setActiveTab('ADMIN')} className={sidebarItemClass('ADMIN')}>
+                    <span className="flex items-center gap-2.5">
+                      <ShieldCheck className="h-4 w-4" />
+                      Administration audits
+                    </span>
+                    <ChevronRight className="h-3 w-3 opacity-50" />
+                  </button>
+
+                  <button onClick={() => setActiveTab('SETTINGS')} className={sidebarItemClass('SETTINGS')} id="sidebar-settings-anchor">
+                    <span className="flex items-center gap-2.5">
+                      <Settings className="h-4 w-4" />
+                      Paramètres Système
+                    </span>
+                    <ChevronRight className="h-3 w-3 opacity-50" />
+                  </button>
+
+                  <button onClick={() => setActiveTab('ABOUT')} className={sidebarItemClass('ABOUT')} id="sidebar-about-anchor">
+                    <span className="flex items-center gap-2.5">
+                      <Sparkles className="h-4 w-4 text-amber-500" />
+                      A Propos : KISSINE FLOW™
+                    </span>
+                    <ChevronRight className="h-3 w-3 opacity-50" />
+                  </button>
+                </>
+              )}
             </nav>
           </div>
 
@@ -1835,6 +2655,28 @@ export default function App() {
             >
               <KeyRound className="h-3.5 w-3.5 text-slate-500 shrink-0" />
               <span>Modifier mon mot de passe</span>
+            </button>
+
+            {showInstallBtn && (
+              <button
+                id="btn-install-pwa-sidebar"
+                onClick={triggerInstallPWA}
+                className="w-full py-1.5 px-3 bg-orange-600 hover:bg-orange-500 text-white text-[10px] font-black border border-orange-700 rounded-lg flex items-center justify-center gap-1.5 transition duration-150 cursor-pointer shadow-sm active:translate-y-px"
+                title="Installer KissineFlow sur votre appareil"
+              >
+                <Download className="h-3.5 w-3.5 text-white shrink-0 animate-bounce" />
+                <span>Installer sur l'appareil</span>
+              </button>
+            )}
+
+            <button
+              id="btn-quit-session"
+              onClick={handleLockApp}
+              className="w-full py-2 px-3 bg-red-600 hover:bg-red-500 text-white text-[10px] uppercase tracking-wider font-extrabold rounded-lg flex items-center justify-center gap-1.5 transition duration-150 cursor-pointer shadow-sm active:translate-y-px"
+              title="Quitter la session et fermer l'application"
+            >
+              <LockKeyhole className="h-3.5 w-3.5 text-white shrink-0" />
+              <span>Quitter l'Application</span>
             </button>
           </div>
         </div>
@@ -1926,6 +2768,8 @@ export default function App() {
                 chargeTypes={chargeTypes}
                 activeUser={activeUser}
                 stockBatches={stockBatches}
+                nonFoodItems={nonFoodItems}
+                nonFoodMovements={nonFoodMovements}
                 onNavigateToAudit={() => {
                   setActiveTab('ADMIN');
                   setAdminActiveSubTab('AUDIT');
@@ -1947,6 +2791,8 @@ export default function App() {
                 activeTenant={activeTenant}
                 paymentMethods={paymentMethods}
                 isDayStarted={isDayStarted}
+                menusDuJour={menusDuJour}
+                detailMenusJour={detailMenusJour}
               />
             )}
 
@@ -1986,6 +2832,23 @@ export default function App() {
               />
             )}
 
+            {activeTab === 'MENUS' && (
+              <MenuView
+                dishes={dishes}
+                activeUser={activeUser}
+                logsAction={logsAction}
+                tenantId={activeTenantId}
+                activeTenant={activeTenant}
+                orders={orders}
+                menusDuJour={menusDuJour}
+                setMenusDuJour={setMenusDuJour}
+                detailMenusJour={detailMenusJour}
+                setDetailMenusJour={setDetailMenusJour}
+                formulesDuJour={formulesDuJour}
+                setFormulesDuJour={setFormulesDuJour}
+              />
+            )}
+
             {activeTab === 'STOCKS' && (
               <StocksView
                 ingredients={ingredients}
@@ -1998,6 +2861,19 @@ export default function App() {
                 tenantId={activeTenantId}
                 activeUser={activeUser}
                 onUpdateStockBatches={setStockBatches}
+              />
+            )}
+
+            {activeTab === 'NON_FOOD' && (
+              <NonFoodView
+                items={nonFoodItems}
+                movements={nonFoodMovements}
+                onUpdateItems={setNonFoodItems}
+                onUpdateMovements={setNonFoodMovements}
+                suppliers={suppliers}
+                tenantId={activeTenantId}
+                activeUser={activeUser}
+                logsAction={logsAction}
               />
             )}
 
@@ -2062,6 +2938,9 @@ export default function App() {
                 tenantId={activeTenantId}
                 dishes={dishes}
                 stockBatches={stockBatches}
+                ingredients={ingredients}
+                nonFoodItems={nonFoodItems}
+                nonFoodMovements={nonFoodMovements}
               />
             )}
 
@@ -2080,7 +2959,7 @@ export default function App() {
               <AdminView
                 users={users}
                 auditLogs={auditLogs}
-                tenants={tenants}
+                tenants={allowedTenants}
                 onAddUser={handleAddUser}
                 onUpdateUser={handleUpdateUser}
                 onUpdateTenant={handleUpdateTenant}
@@ -2095,7 +2974,7 @@ export default function App() {
 
             {activeTab === 'SETTINGS' && (
               <SettingsView
-                tenants={tenants}
+                tenants={allowedTenants}
                 activeTenantId={activeTenantId}
                 onUpdateTenant={handleUpdateTenant}
                 users={users}
@@ -2119,7 +2998,7 @@ export default function App() {
                 onUpdateIngredient={handleUpdateIngredient}
                 chargeTypes={chargeTypes}
                 onChangeChargeTypes={saveChargeTypes}
-                onUpdateTenants={setTenants}
+                onUpdateTenants={handleTenantUpdateFromSettings}
                 onUpdateUsers={setUsers}
                 activeUser={activeUser}
                 onUpdateSuppliers={setSuppliers}
@@ -2178,9 +3057,46 @@ export default function App() {
                     De la prise de commande à l'analyse financière, en passant par la gestion des stocks, des achats, de la caisse et des dépenses, <strong className="text-[#0B1F3F] font-semibold">KISSINE FLOW</strong> fournit les outils nécessaires pour améliorer le contrôle opérationnel et la rentabilité.
                   </p>
 
-                  <p className="bg-slate-50 border border-gray-150 p-4 rounded-xl text-xs font-semibold text-gray-600">
-                    💡 L'application peut être déployée localement et fonctionner sans connexion Internet, garantissant ainsi la continuité des activités et la sécurité des données.
-                  </p>
+                  <div className="bg-slate-50 border border-gray-150 p-5 rounded-2xl space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-orange-50 text-orange-600 rounded-lg shrink-0 mt-0.5">
+                        <Smartphone className="h-5 w-5" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-gray-900 text-sm">Disponibilité Multi-Plateforme (PWA)</h4>
+                        <p className="text-xs text-gray-600 leading-relaxed">
+                          KissineFlow est configuré comme une <strong>Progressive Web App (PWA)</strong>. Elle fonctionne instantanément en ligne via son nom de domaine, et peut également être "installée" sur votre ordinateur ou smartphone comme une application native.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2.5 items-center pt-2 border-t border-gray-200">
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Statut de l'application :</span>
+                      {isStandalone ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-150 shadow-3xs">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                          🖥️ Mode Application Installée (Hors-ligne opérationnel)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-blue-50 text-blue-700 border border-blue-150 shadow-3xs">
+                          <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></span>
+                          🌐 Mode Navigateur Web (Installable localement)
+                        </span>
+                      )}
+                    </div>
+
+                    {showInstallBtn && !isStandalone && (
+                      <div className="pt-2">
+                        <button
+                          onClick={triggerInstallPWA}
+                          className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white font-extrabold text-xs rounded-xl flex items-center gap-2 transition cursor-pointer shadow-xs active:translate-y-px"
+                        >
+                          <Download className="h-4 w-4 text-white animate-bounce" />
+                          Installer l'application KissineFlow sur cet appareil
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-100 text-xs">
                     <div className="bg-slate-50/50 p-4 border border-gray-150 rounded-xl space-y-1 hover:bg-slate-50 transition">
@@ -2188,8 +3104,8 @@ export default function App() {
                       <p className="text-slate-900 text-sm font-black font-mono">📞 +237 690 166 582</p>
                     </div>
                     <div className="bg-slate-50/50 p-4 border border-gray-150 rounded-xl space-y-1 hover:bg-slate-50 transition">
-                      <span className="text-gray-400 font-bold block uppercase tracking-wider text-[10px]">Version Installée</span>
-                      <p className="text-slate-900 text-sm font-black font-mono">🚀 Version : 1.0.0</p>
+                      <span className="text-gray-400 font-bold block uppercase tracking-wider text-[10px]">Version / Mode</span>
+                      <p className="text-slate-900 text-sm font-black font-mono">🚀 Version : 1.0.0 – {isStandalone ? "StandAlone" : "Navigateur"}</p>
                     </div>
                   </div>
 
@@ -2199,7 +3115,7 @@ export default function App() {
                 </div>
 
                 {/* Technical JSON Backup Section in toggle/collapsible for maximum professionalism */}
-                <details className="group border border-gray-200 bg-slate-50/70 rounded-xl overflow-hidden mt-6 shadow-3xs animate-fade-in">
+                <details className="group border border-gray-200 bg-slate-50/70 rounded-xl overflow-hidden mt-6 shadow-3xs animate-fade-in text-slate-800">
                   <summary className="px-4 py-3 text-xs font-bold text-gray-700 hover:text-[#0B1F3F] cursor-pointer select-none flex items-center justify-between transition duration-150 bg-slate-50">
                     <span className="text-[#0B1F3F] font-black">Spécifications de Sauvegarde & Mémoire JSON (ERP local)</span>
                     <ChevronRight className="h-4 w-4 transform transition-transform group-open:rotate-90 text-[#F26522]" />
@@ -2218,17 +3134,51 @@ export default function App() {
                         <p className="text-[11px] text-gray-500">Matières premières, coûts BOM espérés, fiches techniques plats.</p>
                       </div>
                       <div className="space-y-1 bg-slate-50 p-3 rounded-lg border border-gray-150">
+                        <h4 className="font-extrabold text-indigo-650">erp-stock-batches</h4>
+                        <p className="text-[11px] text-gray-500">Lots d'ingrédients datés (FIFO) avec date de péremption, taux de mévente, et motifs d'ajustements de perte multi-motifs.</p>
+                      </div>
+                      <div className="space-y-1 bg-slate-50 p-3 rounded-lg border border-gray-150">
+                        <h4 className="font-extrabold text-[#F26522]">erp-non-food-items & movements</h4>
+                        <p className="text-[11px] text-gray-500">Actifs circulants optionnels : stocks consommables, emballages, articles d'entretien ou d'hygiène et sorties associées.</p>
+                      </div>
+                      <div className="space-y-1 bg-slate-50 p-3 rounded-lg border border-gray-150">
                         <h4 className="font-extrabold text-blue-600">erp-orders</h4>
                         <p className="text-[11px] text-gray-500">Transactions d'encaissement et canal de vente.</p>
                       </div>
                       <div className="space-y-1 bg-slate-50 p-3 rounded-lg border border-gray-150">
                         <h4 className="font-extrabold text-orange-600">erp-expenses</h4>
-                        <p className="text-[11px] text-gray-500">Dépenses opérationnelles et types de charges.</p>
+                        <p className="text-[11px] text-gray-500">Dépenses opérationnelles et types de charges (Salaires, Loyers, Énergie/Eau, Divers).</p>
+                      </div>
+                      <div className="space-y-1 bg-slate-50 p-3 rounded-lg border border-gray-150">
+                        <h4 className="font-extrabold text-cyan-700">erp-daily-closures & erp-cash-movements</h4>
+                        <p className="text-[11px] text-gray-500">Clôtures certifiées (Z-Out) et mouvements d'ajustement du tiroir-caisse.</p>
+                      </div>
+                      <div className="space-y-1 bg-slate-50 p-3 rounded-lg border border-gray-150">
+                        <h4 className="font-extrabold text-rose-600">erp-audit-logs</h4>
+                        <p className="text-[11px] text-gray-500">Journal d'audit-trail pour tracer chaque perte, création d'ingrédient ou mouvement financier.</p>
                       </div>
                     </div>
                   </div>
                 </details>
               </div>
+            )}
+
+            {activeTab === 'SUPERADMIN' && (
+              <SuperAdminView
+                tenants={tenants}
+                users={users}
+                orders={orders}
+                ingredients={ingredients}
+                expenses={expenses}
+                auditLogs={auditLogs}
+                onAddTenant={handleSuperAddTenant}
+                onUpdateTenant={handleSuperUpdateTenant}
+                onDeleteTenant={handleSuperDeleteTenant}
+                onRestoreTenantData={handleRestoreTenantData}
+                onExportTenantData={handleExportTenantData}
+                logsAction={logsAction}
+                onUpdateUsers={setUsers}
+              />
             )}
           </div>
         </main>
@@ -2267,6 +3217,22 @@ export default function App() {
                   e.preventDefault();
                   const correctPassword = pendingUser.password || 'password123';
                   if (pendingPasswordInput === correctPassword) {
+                    // Check if target user's restaurant/tenant is disabled (except for SuperAdmin)
+                    if (pendingUser.role !== 'SUPERADMIN') {
+                      if (pendingUser.active === false) {
+                        setPendingPasswordError("Votre compte collaborateur a été désactivé. Veuillez contacter l'administrateur de votre établissement.");
+                        logsAction(`Tentative de changement de profil bloquée pour ${pendingUser.name} : compte collaborateur désactivé`, 'SÉCURITÉ');
+                        return;
+                      }
+
+                      const tenant = tenants.find(t => t.id === pendingUser.tenantId);
+                      if (tenant && tenant.active === false) {
+                        setPendingPasswordError("Votre restaurant a été désactivé. Veuillez contacter l'administrateur de la plateforme.");
+                        logsAction(`Tentative de changement de profil bloquée pour ${pendingUser.name} : le restaurant ${tenant.name} est suspendu/désactivé`, 'SÉCURITÉ');
+                        return;
+                      }
+                    }
+
                     setActiveUserId(pendingUserId);
                     const roleObj = pendingUser.role;
                     if (roleObj === 'CASHIER') setActiveTab('POS');
@@ -2312,10 +3278,17 @@ export default function App() {
                     </p>
                   )}
 
-                  <div className="text-[10px] text-amber-800 bg-amber-50 border border-amber-100 p-2.5 rounded-lg leading-relaxed select-none">
-                    <p className="font-extrabold flex items-center gap-1">🔑 Clé de Démo :</p>
-                    <p className="font-semibold mt-0.5">Saisissez <code className="bg-amber-100 px-1 py-0.5 rounded font-bold font-mono text-amber-900">{pendingUser.password || 'password123'}</code></p>
-                  </div>
+                  {pendingUser.passwordChanged ? (
+                    <div className="text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-100 p-2.5 rounded-lg leading-relaxed select-none">
+                      <p className="font-extrabold flex items-center gap-1">🔒 Sécurité Personnelle Activée :</p>
+                      <p className="text-[11px] text-gray-550 mt-0.5 leading-relaxed">Le mot de passe de ce collaborateur a été personnalisé. Saisissez sa clé d'accès privée confidentielle pour déverrouiller son espace de travail.</p>
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-amber-800 bg-amber-50 border border-amber-100 p-2.5 rounded-lg leading-relaxed select-none">
+                      <p className="font-extrabold flex items-center gap-1">🔑 Clé de Démo :</p>
+                      <p className="font-semibold mt-0.5">Saisissez <code className="bg-amber-100 px-1 py-0.5 rounded font-bold font-mono text-amber-900">{pendingUser.password || 'password123'}</code></p>
+                    </div>
+                  )}
 
                   <div className="flex gap-2 justify-end pt-2 border-t">
                     <button
@@ -2429,6 +3402,82 @@ export default function App() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MANDATORY FIRST-LOGIN PASSWORD RESET MODAL */}
+      {mustChangePasswordUser && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4 shadow-2xl">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-gray-250 shadow-2xl relative space-y-4">
+            <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-red-500 via-amber-500 to-indigo-500 rounded-t-2xl"></div>
+            
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-50 text-amber-800 rounded-full">
+                <LockKeyhole className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-gray-900 font-sans uppercase tracking-wider">
+                  🔑 Initialisation Obligatoire de Sécurité
+                </h3>
+                <p className="text-[11px] text-gray-500 font-semibold mt-0.5">
+                  Première connexion au restaurant KisssineFlow ERP
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 text-xs text-blue-900 space-y-1 leading-relaxed">
+              <p className="font-extrabold">🚨 Consignes d'exploitation du SuperAdmin :</p>
+              <p className="font-semibold text-gray-650">
+                Par mesure de sécurité renforcée pour votre infrastructure, vous devez remplacer le mot de passe provisoire attribué lors de la création de votre compte client.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveMustChangePassword} className="space-y-4 text-xs font-semibold">
+              <div className="space-y-1">
+                <label className="text-gray-600 block">Nouveau Mot de Passe Extrême *</label>
+                <input
+                  type="password"
+                  placeholder="Minimum 4 caractères"
+                  value={mustChangeNewPass}
+                  onChange={(e) => {
+                    setMustChangeNewPass(e.target.value);
+                    setMustChangeError('');
+                  }}
+                  className="w-full p-3 border rounded border-gray-255 bg-slate-50 font-mono tracking-widest text-center text-gray-950 focus:outline-none focus:border-indigo-600"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-gray-600 block">Confirmer Nouveau Mot de Passe *</label>
+                <input
+                  type="password"
+                  placeholder="Ressaisissez à l'identique"
+                  value={mustChangeConfirm}
+                  onChange={(e) => {
+                    setMustChangeConfirm(e.target.value);
+                    setMustChangeError('');
+                  }}
+                  className="w-full p-3 border rounded border-gray-255 bg-slate-50 font-mono tracking-widest text-center text-gray-950 focus:outline-none focus:border-indigo-600"
+                  required
+                />
+              </div>
+
+              {mustChangeError && (
+                <div className="p-2.5 rounded-lg bg-rose-50 text-rose-800 text-center text-[11px] font-bold border border-rose-100 uppercase animate-bounce">
+                  ⚠️ {mustChangeError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-extrabold rounded-xl transition duration-150 flex items-center justify-center gap-2 cursor-pointer shadow-md text-xs uppercase tracking-wider"
+              >
+                <Check className="h-4 w-4 text-emerald-400" />
+                <span>Modifier et Ouvrir Ma Session</span>
+              </button>
+            </form>
           </div>
         </div>
       )}

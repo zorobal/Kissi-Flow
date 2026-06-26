@@ -69,6 +69,15 @@ L'ERP résout le problème de l'écart classique entre la théorie et le terrain
 * **Marge Matières Premières (BOM / Bill Of Materials)** : Basée sur la composition idéale de la recette configurée au CMP. C'est l'objectif d'efficacité absolue de la cuisine.
 * **Marge brute Resto globale (Coûts Personnalisés)** : Repose sur les coûts de revient réels et spécifiques que le gérant peut saisir manuellement pour chaque plat. Cette rentabilité inclut l'intégration des pertes habituelles, des écarts d'inventaires d'ingrédients ou du packaging, offrant ainsi la vision la plus fidèle de la rentabilité brute.
 
+### 4. Gestion Intégrée des Pertes Multi-Motifs & Actifs Circulants Conjoints
+Pour faire face aux aléas structurels d'une cuisine professionnelle, deux flux transverses majeurs ont été intégrés :
+* **Détection Multi-Motifs des Pertes d'Exploitation** : Le système propose un menu déroulant d'origine de perte (Péremption, Coupure de courant, Accident de cuisine/Casse, Altération qualité, Avarie transport, Vol/Écart de stock, Autre exception). Toute perte déclarée engendre :
+  1. Une soustraction physique instantanée de l'inventaire en stocks.
+  2. Un flux de traçabilité commenté consigné dans l'audit-trail.
+  3. L'apparition automatique d'un badge rouge d'alerte explicite dans le **Dashboard BI** (`Dont gaspillages / pertes : -X F` sous le Bénéfice Net) pour alerter les décideurs.
+  4. L'imputation automatique en charge directe d'exploitation déductible dans le **Bilan Financier (SIG)**.
+* **Synthèse Globale des Stocks Conjoints** : La valorisation de l'actif circulant en réserve consolide dynamiquement le stock alimentaire (ingrédients) et le stock hors-alimentation (consommables, packaging, hygiène) valorisés au coût moyen pondéré (CMP). Cette double métrique donne une visibilité stratégique exhaustive de la trésorerie immobilisée en réserve.
+
 ---
 
 ## III. Programme Global de Formation Module par Module

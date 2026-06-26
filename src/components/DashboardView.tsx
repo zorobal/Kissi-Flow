@@ -76,6 +76,8 @@ interface DashboardViewProps {
   chargeTypes?: any[];
   activeUser?: any;
   stockBatches?: StockBatch[];
+  nonFoodItems?: any[];
+  nonFoodMovements?: any[];
 }
 
 export default function DashboardView({
@@ -94,7 +96,9 @@ export default function DashboardView({
   dishCategories = [],
   chargeTypes = [],
   activeUser,
-  stockBatches = []
+  stockBatches = [],
+  nonFoodItems = [],
+  nonFoodMovements = []
 }: DashboardViewProps) {
   const [dateFilter, setDateFilter] = useState<DateFilterState>(initialDateFilterState);
   
@@ -212,7 +216,14 @@ export default function DashboardView({
 
   const totalLossValuation = periodLosses.reduce((sum: number, b: any) => sum + (b.lossAmount || 0), 0);
 
-  const netProfit = grossMarginResto - totalExpensesAmount - totalLossValuation;
+  // --- VALORISATION CONSOMMATION & PERTES HORS-ALIMENTATION ---
+  const tenantNonFoodMovements = nonFoodMovements.filter(mv => mv.tenantId === tenantId);
+  const periodNonFoodMovements = tenantNonFoodMovements.filter(mv => matchDateFilter(mv.date.slice(0, 10), dateFilter));
+  const totalNonFoodConsumptionAndLossVal = periodNonFoodMovements
+    .filter(mv => mv.type === 'OUT' || mv.type === 'ADJUST_MINUS')
+    .reduce((sum, mv) => sum + (mv.value || 0), 0);
+
+  const netProfit = grossMarginResto - totalExpensesAmount - totalLossValuation - totalNonFoodConsumptionAndLossVal;
 
   // CONSOLIDATED / COMBINED METRICS (including Completed Prestations)
   const consolidatedCA = totalCA + completedBuffetCA_TTC + completedCateringCA_TTC;
@@ -225,7 +236,7 @@ export default function DashboardView({
   const consolidatedMarginPercentBOM = consolidatedCA > 0 ? (consolidatedGrossMarginBOM / consolidatedCA) * 100 : 0;
   const consolidatedMarginPercentResto = consolidatedCA > 0 ? (consolidatedGrossMarginResto / consolidatedCA) * 100 : 0;
 
-  const consolidatedNetProfit = consolidatedGrossMarginResto - totalExpensesAmount - totalLossValuation;
+  const consolidatedNetProfit = consolidatedGrossMarginResto - totalExpensesAmount - totalLossValuation - totalNonFoodConsumptionAndLossVal;
 
   // Compute goal achieve stats
   const getDayActualSales = (dStr: string) => {
@@ -445,6 +456,17 @@ export default function DashboardView({
   // 10. STOCK VALUATION
   const totalStockValuation = tenantIngredients.reduce((sum, i) => sum + (i.stockActual * (i.cmp || i.lastPurchasePrice || 0)), 0);
   const totalArticlesInStock = tenantIngredients.filter(i => i.stockActual > 0).length;
+
+  // --- NON-FOOD STOCK VALUATIONS & STATS ---
+  const tenantNonFoodItems = nonFoodItems.filter(it => it.tenantId === tenantId && it.active);
+  const totalNonFoodStockValuation = tenantNonFoodItems.reduce((sum, it) => sum + (it.stockActual * it.cmp), 0);
+  const totalNonFoodArticlesInStock = tenantNonFoodItems.filter(i => i.stockActual > 0).length;
+  const underMinNonFoodStockCount = tenantNonFoodItems.filter(i => i.stockActual > 0 && i.stockActual <= i.stockMin).length;
+  const outOfStockNonFoodCount = tenantNonFoodItems.filter(i => i.stockActual <= 0).length;
+
+  const totalJointStockValuation = totalStockValuation + totalNonFoodStockValuation;
+  const percentageFoodExact = totalJointStockValuation > 0 ? (totalStockValuation / totalJointStockValuation) * 100 : 100;
+  const percentageNonFoodExact = totalJointStockValuation > 0 ? (totalNonFoodStockValuation / totalJointStockValuation) * 100 : 0;
 
   // Valuation by categories
   const stockValuationByCat: { [catId: string]: { name: string; val: number } } = {};
@@ -2022,46 +2044,89 @@ ${perishAlertsFormatted}
         </div>
 
         {/* PANEL 3: VALEUR DU STOCK & ALERTE SÉCURITÉ */}
-        <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-3xs space-y-4" id="pane-stock-valuation">
+        <div className="bg-white p-5 rounded-2xl border border-gray-150 shadow-3xs space-y-4" id="pane-stock-synthesis">
           <div className="border-b pb-2">
             <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest flex items-center gap-1.5">
               <FolderClosed className="h-4 w-4 text-amber-500" />
-              3. Gestion de Stock
+              <span>3. Synthèse des Stocks Globaux d'Actifs</span>
             </h4>
           </div>
-          <div className="space-y-2.5 text-xs">
-            <div className="flex justify-between border-b pb-1">
-              <span className="text-gray-500 font-medium">Valeur totale stock :</span>
-              <strong className="text-gray-950 font-mono text-xs">{totalStockValuation.toLocaleString()} F</strong>
+          <div className="space-y-3 text-xs">
+            {/* TOTAL CONSOLIDATED VALUATION */}
+            <div className="p-2.5 bg-[#4F46E5]/5 border border-[#4F46E5]/10 rounded-xl flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-gray-400 font-extrabold uppercase tracking-wide block">Valorisation Globale Actifs Stocks</span>
+                <p className="text-sm font-black font-mono text-gray-950 mt-0.5">{totalJointStockValuation.toLocaleString()} FCFA</p>
+              </div>
+              <span className="text-[9px] bg-[#4F46E5] text-white font-bold px-2 py-0.5 rounded-md font-mono">CMP</span>
             </div>
-            <div className="flex justify-between border-b pb-1">
-              <span className="text-gray-500 font-medium">Articles en stock (actifs) :</span>
-              <strong className="text-gray-950">{totalArticlesInStock} ingrédients</strong>
-            </div>
-            
-            <div className="pt-1">
-              <span className="text-[10px] text-gray-400 font-bold block uppercase tracking-widest mb-1">Ratios d'Exploitation :</span>
-              <div className="space-y-1.5 text-[11px] max-h-24 overflow-y-auto pr-1">
-                {Object.entries(stockValuationByCat).map(([key, item]) => (
-                  <div key={key} className="flex justify-between text-[10px]">
-                    <span className="truncate max-w-[120px] text-gray-500 font-medium">{item.name} :</span>
-                    <strong className="font-mono">{item.val.toLocaleString()} F</strong>
-                  </div>
-                ))}
+
+            {/* BAR COMPARISONS */}
+            <div className="space-y-1">
+              <div className="flex justify-between text-[9px] font-bold text-gray-500 uppercase tracking-wide">
+                <span>Alimentaire</span>
+                <span>Hors-Alim</span>
+              </div>
+              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                <div className="bg-indigo-600 h-full" style={{ width: `${percentageFoodExact}%` }} title={`Ingrédients: ${percentageFoodExact.toFixed(1)}%`} />
+                <div className="bg-sky-400 h-full" style={{ width: `${percentageNonFoodExact}%` }} title={`Hors-Alim: ${percentageNonFoodExact.toFixed(1)}%`} />
+              </div>
+              <div className="flex justify-between text-[9px] font-mono font-bold">
+                <span className="text-indigo-600">{percentageFoodExact.toFixed(0)}% ({totalStockValuation.toLocaleString()} F)</span>
+                <span className="text-sky-600">{percentageNonFoodExact.toFixed(0)}% ({totalNonFoodStockValuation.toLocaleString()} F)</span>
               </div>
             </div>
 
-            <div className="pt-2 border-t text-[11px] space-y-1 bg-red-50/20 p-2 rounded-lg border border-red-500/10">
-              <span className="text-[10px] text-red-700 font-bold block uppercase tracking-widest">Ruptures de stock :</span>
-              <div className="flex justify-between">
-                <span>Ruptures critiques :</span>
-                <strong className={outOfStockCount > 0 ? "text-red-600 font-bold font-mono" : "text-green-600 font-bold"}>{outOfStockCount} art.</strong>
+            {/* INGREDIENTS DRILL DOWN */}
+            <div className="pt-2 border-t space-y-1.5">
+              <div className="flex justify-between items-center bg-indigo-50/20 p-1.5 rounded-lg border border-indigo-100/30">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="h-1.5 w-1.5 bg-indigo-600 rounded-full shrink-0" />
+                  <span className="font-bold text-indigo-950 truncate">Stock Alimentaire</span>
+                </div>
+                <strong className="font-mono text-indigo-850 shrink-0">{totalStockValuation.toLocaleString()} F</strong>
               </div>
-              <div className="flex justify-between">
-                <span>Sous seuil critique :</span>
-                <strong className="text-orange-600 font-bold font-mono">{underMinStockCount} art.</strong>
+              <div className="pl-3.5 space-y-1 text-[11px] text-gray-500 font-medium font-sans">
+                <div className="flex justify-between">
+                  <span>Articles actifs :</span>
+                  <span>{totalArticlesInStock} ingrédients</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>En Rupture sèche :</span>
+                  <span className={outOfStockCount > 0 ? "text-red-650 font-black" : "text-green-600"}>{outOfStockCount} art.</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Sous seuil minimum :</span>
+                  <span className={underMinStockCount > 0 ? "text-orange-655 font-black" : "text-gray-600"}>{underMinStockCount} art.</span>
+                </div>
               </div>
             </div>
+
+            {/* NON-FOOD DRILL DOWN */}
+            <div className="pt-1 space-y-1.5">
+              <div className="flex justify-between items-center bg-sky-50/20 p-1.5 rounded-lg border border-sky-100/30">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="h-1.5 w-1.5 bg-sky-400 rounded-full shrink-0" />
+                  <span className="font-bold text-sky-950 truncate">Stock Hors-Alimentaire</span>
+                </div>
+                <strong className="font-mono text-sky-850 shrink-0">{totalNonFoodStockValuation.toLocaleString()} F</strong>
+              </div>
+              <div className="pl-3.5 space-y-1 text-[11px] text-gray-500 font-medium font-sans">
+                <div className="flex justify-between">
+                  <span>Articles actifs :</span>
+                  <span>{totalNonFoodArticlesInStock} matériels & emballages</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>En Rupture sèche :</span>
+                  <span className={outOfStockNonFoodCount > 0 ? "text-red-650 font-black" : "text-green-600"}>{outOfStockNonFoodCount} art.</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Sous seuil minimum :</span>
+                  <span className={underMinNonFoodStockCount > 0 ? "text-orange-655 font-black" : "text-gray-600"}>{underMinNonFoodStockCount} art.</span>
+                </div>
+              </div>
+            </div>
+            
           </div>
         </div>
 

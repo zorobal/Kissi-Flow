@@ -21,7 +21,7 @@ import {
   HelpCircle,
   Trash2
 } from 'lucide-react';
-import { Order, Expense, ChargeType, Dish, StockBatch } from '../types';
+import { Order, Expense, ChargeType, Dish, StockBatch, Ingredient } from '../types';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import DateFilterComponent, {
@@ -39,6 +39,9 @@ interface BilanViewProps {
   tenantId: string;
   dishes?: Dish[];
   stockBatches?: StockBatch[];
+  ingredients?: Ingredient[];
+  nonFoodItems?: any[];
+  nonFoodMovements?: any[];
 }
 
 interface CustomOtherRevenue {
@@ -47,7 +50,17 @@ interface CustomOtherRevenue {
   amount: number;
 }
 
-export default function BilanView({ orders, expenses, chargeTypes, tenantId, dishes = [], stockBatches = [] }: BilanViewProps) {
+export default function BilanView({
+  orders,
+  expenses,
+  chargeTypes,
+  tenantId,
+  dishes = [],
+  stockBatches = [],
+  ingredients = [],
+  nonFoodItems = [],
+  nonFoodMovements = []
+}: BilanViewProps) {
   // Date filter state
   const [dateFilter, setDateFilter] = useState<DateFilterState>(initialDateFilterState);
 
@@ -224,8 +237,15 @@ export default function BilanView({ orders, expenses, chargeTypes, tenantId, dis
 
   const totalLossFromBatchesAmount = periodLosses.reduce((sum: number, b: any) => sum + (b.lossAmount || 0), 0);
 
-  const totalCharges = totalMatiere + totalSalaires + totalLoyer + totalEnergieEau + totalAutres + totalLossFromBatchesAmount;
-  const totalChargesResto = totalMatiereResto + totalSalaires + totalLoyer + totalEnergieEau + totalAutres + totalLossFromBatchesAmount;
+  // --- VALORISATION CONSOMMATION & PERTES HORS-ALIMENTATION ---
+  const tenantNonFoodMovements = nonFoodMovements.filter(mv => mv.tenantId === tenantId);
+  const periodNonFoodMovements = tenantNonFoodMovements.filter(mv => matchDateFilter(mv.date.slice(0, 10), dateFilter));
+  const totalNonFoodConsumptionAndLossVal = periodNonFoodMovements
+    .filter(mv => mv.type === 'OUT' || mv.type === 'ADJUST_MINUS')
+    .reduce((sum, mv) => sum + (mv.value || 0), 0);
+
+  const totalCharges = totalMatiere + totalSalaires + totalLoyer + totalEnergieEau + totalAutres + totalLossFromBatchesAmount + totalNonFoodConsumptionAndLossVal;
+  const totalChargesResto = totalMatiereResto + totalSalaires + totalLoyer + totalEnergieEau + totalAutres + totalLossFromBatchesAmount + totalNonFoodConsumptionAndLossVal;
 
   // --- FINAL RATIOS & NET INCOME ---
   const resultatNet = totalProduits - totalCharges;
@@ -239,6 +259,23 @@ export default function BilanView({ orders, expenses, chargeTypes, tenantId, dis
   const totalAllCAHt = caHt + totalBuffetCompletedHt + totalCateringCompletedHt;
   const foodCostPercent = totalAllCAHt > 0 ? (totalMatiere / totalAllCAHt) * 100 : 0;
   const foodCostPercentResto = totalAllCAHt > 0 ? (totalMatiereResto / totalAllCAHt) * 100 : 0;
+
+  // --- CALCUL VALORISATION SYNTHESE DES STOCKS ---
+  const tenantIngredients = ingredients.filter(i => i.tenantId === tenantId && i.active);
+  const totalFoodStockValuation = tenantIngredients.reduce((sum, i) => sum + (i.stockActual * (i.cmp || i.lastPurchasePrice || 0)), 0);
+  const totalFoodArticlesInStock = tenantIngredients.filter(i => i.stockActual > 0).length;
+  const underMinFoodArticles = tenantIngredients.filter(i => i.stockActual > 0 && i.stockActual <= i.stockMin).length;
+  const outOfStockFoodArticles = tenantIngredients.filter(i => i.stockActual <= 0).length;
+
+  const tenantNonFoodItems = nonFoodItems.filter(it => it.tenantId === tenantId && it.active);
+  const totalNonFoodStockValuation = tenantNonFoodItems.reduce((sum, it) => sum + (it.stockActual * it.cmp), 0);
+  const totalNonFoodArticlesInStock = tenantNonFoodItems.filter(i => i.stockActual > 0).length;
+  const underMinNonFoodArticles = tenantNonFoodItems.filter(i => i.stockActual > 0 && i.stockActual <= i.stockMin).length;
+  const outOfStockNonFoodArticles = tenantNonFoodItems.filter(i => i.stockActual <= 0).length;
+
+  const totalJointStockValuation = totalFoodStockValuation + totalNonFoodStockValuation;
+  const percentageFoodExact = totalJointStockValuation > 0 ? (totalFoodStockValuation / totalJointStockValuation) * 100 : 100;
+  const percentageNonFoodExact = totalJointStockValuation > 0 ? (totalNonFoodStockValuation / totalJointStockValuation) * 100 : 0;
 
   // Render Date Period Text label
   const getPeriodLabel = () => {
@@ -994,6 +1031,12 @@ B. CHARGES D'EXPLOITATION OPÉRATIONNELLES (COÛTS DE PRODUCTION)
                 <strong className="font-mono">{totalLossFromBatchesAmount.toLocaleString()} F</strong>
               </div>
             )}
+            {totalNonFoodConsumptionAndLossVal > 0 && (
+              <div className="flex justify-between text-sky-750 pt-1.5 border-t border-dashed border-sky-200 font-bold uppercase text-[9px] tracking-wider">
+                <span>📦 Consommation Hors-Alim :</span>
+                <strong className="font-mono">{totalNonFoodConsumptionAndLossVal.toLocaleString()} F</strong>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1190,6 +1233,22 @@ B. CHARGES D'EXPLOITATION OPÉRATIONNELLES (COÛTS DE PRODUCTION)
                   </div>
                 )}
 
+                {/* CONSOMMATION HORS-ALIMENTATION */}
+                {totalNonFoodConsumptionAndLossVal > 0 && (
+                  <div className="flex justify-between py-2.5 items-center pl-3 bg-sky-50/20 border-l-2 border-sky-450 my-1">
+                    <div className="flex items-center gap-2">
+                      <TrendingDown className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+                      <div className="flex flex-col">
+                        <span className="font-bold text-sky-850">Charges Consommables Hors-Alim</span>
+                        <span className="text-[8px] text-gray-450 font-medium font-sans">
+                          Emballages, hygiène, entretien & fournitures consommés/perdus sur la période
+                        </span>
+                      </div>
+                    </div>
+                    <div className="font-mono font-black text-sky-700 text-xs pr-1">{totalNonFoodConsumptionAndLossVal.toLocaleString()} F</div>
+                  </div>
+                )}
+
                 {/* TOTAL CHARGES */}
                 <div className="flex justify-between py-3 items-center bg-red-50/20 font-black text-xs pl-4 rounded-lg">
                   <span>TOTAL CHARGES (B)</span>
@@ -1310,8 +1369,85 @@ B. CHARGES D'EXPLOITATION OPÉRATIONNELLES (COÛTS DE PRODUCTION)
           </div>
         </div>
 
-        {/* RIGHT COLUMN: MANUAL ADJUSTMENTS & CORRECTIONS */}
-        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-2xs space-y-5 text-xs">
+        {/* RIGHT COLUMN: STOCKS SYNTHESIS & MANUAL ADJUSTMENTS */}
+        <div className="space-y-6 lg:col-span-1">
+          {/* STOCKS SYNTHESIS CARD */}
+          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-3xs space-y-4 text-xs" id="bilan-stock-synthesis">
+            <div className="border-b pb-2">
+              <h3 className="font-extrabold text-[#1E4E8C] flex items-center gap-1.5 uppercase text-[11px] tracking-wider">
+                <TrendingUp className="h-4 w-4 text-[#F26522]" />
+                <span>Synthèse Globale des Stocks d'Actifs</span>
+              </h3>
+              <p className="text-[10px] text-gray-400 mt-1">
+                Aperçu consolidé de l'actif circulant (valorisé au coût moyen pondéré) en stock de réserve.
+              </p>
+            </div>
+
+            <div className="space-y-3.5">
+              {/* GRAND TOTAL VALUATION */}
+              <div className="bg-slate-50/75 p-3 rounded-lg border border-slate-100 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Valorisation Actifs Stocks</span>
+                  <p className="text-lg font-black font-mono text-gray-950 mt-0.5">{totalJointStockValuation.toLocaleString()} FCFA</p>
+                </div>
+                <div className="p-2 bg-indigo-50 text-indigo-700 rounded-lg">
+                  <Calculator className="h-4 w-4" />
+                </div>
+              </div>
+
+              {/* COMPARATIVE BAR */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] font-black text-gray-500 uppercase tracking-wide">
+                  <span>Alimentaire (Ingrédients)</span>
+                  <span>Hors-Alimentation</span>
+                </div>
+                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                  <div className="bg-indigo-600 h-full" style={{ width: `${percentageFoodExact}%` }} title={`Ingrédients: ${percentageFoodExact.toFixed(1)}%`} />
+                  <div className="bg-sky-400 h-full" style={{ width: `${percentageNonFoodExact}%` }} title={`Hors-Alim: ${percentageNonFoodExact.toFixed(1)}%`} />
+                </div>
+                <div className="flex justify-between text-[10px] font-mono mt-0.5 font-bold">
+                  <span className="text-indigo-700">{percentageFoodExact.toFixed(1)}% ({totalFoodStockValuation.toLocaleString()} F)</span>
+                  <span className="text-sky-700">{percentageNonFoodExact.toFixed(1)}% ({totalNonFoodStockValuation.toLocaleString()} F)</span>
+                </div>
+              </div>
+
+              {/* DETAILED STATS */}
+              <div className="space-y-2 pt-2 border-t border-gray-100/50">
+                {/* INGREDIENTS STATUS */}
+                <div className="flex items-start justify-between">
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-gray-900 text-[11px]">Stock d'Ingrédients</span>
+                    <p className="text-[9px] text-gray-400 leading-none">{totalFoodArticlesInStock} matière(s) active(s) en réserve</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono font-bold text-indigo-700">{totalFoodStockValuation.toLocaleString()} F</p>
+                    <div className="flex gap-1.5 justify-end text-[9px] font-black uppercase mt-0.5">
+                      {underMinFoodArticles > 0 && <span className="text-orange-600 font-bold">⚠️ {underMinFoodArticles} Alerte{underMinFoodArticles > 1 ? 's' : ''}</span>}
+                      {outOfStockFoodArticles > 0 && <span className="text-rose-600 font-bold font-sans">❌ {outOfStockFoodArticles} Rupture{outOfStockFoodArticles > 1 ? 's' : ''}</span>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* NON-FOOD STATUS */}
+                <div className="flex items-start justify-between pt-2 border-t border-dashed border-gray-100">
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-gray-900 text-[11px]">Stock Hors-Alimentation</span>
+                    <p className="text-[9px] text-gray-400 leading-none">{totalNonFoodArticlesInStock} matériels & emballages actif(s)</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono font-bold text-sky-700">{totalNonFoodStockValuation.toLocaleString()} F</p>
+                    <div className="flex gap-1.5 justify-end text-[9px] font-black uppercase mt-0.5">
+                      {underMinNonFoodArticles > 0 && <span className="text-orange-600 font-bold">⚠️ {underMinNonFoodArticles} Alerte{underMinNonFoodArticles > 1 ? 's' : ''}</span>}
+                      {outOfStockNonFoodArticles > 0 && <span className="text-rose-600 font-bold font-sans">❌ {outOfStockNonFoodArticles} Rupture{outOfStockNonFoodArticles > 1 ? 's' : ''}</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: MANUAL ADJUSTMENTS & CORRECTIONS */}
+          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-2xs space-y-5 text-xs">
           <div className="border-b pb-2">
             <h3 className="font-extrabold text-gray-900 flex items-center gap-1.5 uppercase text-[11px] tracking-wider">
               <Calculator className="h-4 w-4 text-[#1E4E8C]" />
@@ -1459,5 +1595,6 @@ B. CHARGES D'EXPLOITATION OPÉRATIONNELLES (COÛTS DE PRODUCTION)
 
       </div>
     </div>
+  </div>
   );
 }

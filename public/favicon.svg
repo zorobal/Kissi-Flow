@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF7E40" />
+      <stop offset="100%" stop-color="#F26522" />
+    </linearGradient>
+    <linearGradient id="ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B1F3F" />
+      <stop offset="100%" stop-color="#1E4E8C" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <drop-shadow dx="0" dy="8" stdDeviation="12" flood-color="#0B1F3F" flood-opacity="0.15" />
+    </filter>
+  </defs>
+
+  <!-- Background elegant plate shape -->
+  <circle cx="256" cy="256" r="230" fill="#0B1F3F" filter="url(#shadow)" />
+  <circle cx="256" cy="256" r="215" fill="none" stroke="#F26522" stroke-width="3" stroke-dasharray="12 8" opacity="0.6" />
+  
+  <!-- Outer glowing speed ring of flow -->
+  <path d="M 256,50 A 206,206 0 1,1 150,440" fill="none" stroke="url(#glow)" stroke-width="16" stroke-linecap="round" />
+  <circle cx="150" cy="440" r="12" fill="#FF7E40" />
+  <circle cx="256" cy="50" r="12" fill="#F26522" />
+
+  <!-- Chef hat vector graphic in center -->
+  <g transform="translate(146, 130) scale(1.4)" fill="#FFFFFF">
+    <!-- Hat dome bumps -->
+    <path d="M 40,80 C 15,80 15,50 35,45 C 35,20 65,10 80,30 C 95,10 125,20 125,45 C 145,50 145,80 120,80 Z" fill="url(#glow)" />
+    <!-- Hat bottom fold/band -->
+    <rect x="42" y="78" width="76" height="18" rx="4" fill="#FFFFFF" />
+    <rect x="48" y="83" width="64" height="8" rx="2" fill="#0B1F3F" opacity="0.2" />
+    <!-- Small elegant spoon & fork inside band -->
+    <path d="M 58,87 L 70,87 M 90,87 L 102,87" stroke="#0B1F3F" stroke-width="2" stroke-linecap="round" opacity="0.6" />
+  </g>
+
+  <!-- Golden Fork and Knife crossing dynamically in the lower circle -->
+  <g transform="translate(256, 380) scale(0.9)" opacity="0.9">
+    <!-- Fork -->
+    <path d="M -40,-20 L -40,10 M -48,-20 L -48,-5 C -48,5 -40,10 -40,10 M -32,-20 L -32,-5 C -32,5 -40,10 -40,10 M -40,10 L -40,40" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" fill="none" />
+    <!-- Knife -->
+    <path d="M 40,-20 C 40,-20 48,-20 48,-5 C 48,10 40,15 40,15 L 40,40" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" fill="none" />
+    <line x1="40" y1="15" x2="40" y2="40" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" />
+  </g>
+</svg>

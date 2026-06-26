@@ -26,7 +26,7 @@ import {
   ArrowLeft,
   Download
 } from 'lucide-react';
-import { Dish, DishCategory, Ingredient, Recipe, Order, Tenant } from '../types';
+import { Dish, DishCategory, Ingredient, Recipe, Order, Tenant, DetailMenuJour, MenuDuJour } from '../types';
 
 interface POSViewProps {
   dishes: Dish[];
@@ -41,6 +41,8 @@ interface POSViewProps {
   activeTenant?: Tenant;
   paymentMethods?: string[];
   isDayStarted?: boolean;
+  menusDuJour?: MenuDuJour[];
+  detailMenusJour?: DetailMenuJour[];
 }
 
 // Held Cart representation
@@ -70,7 +72,9 @@ export default function POSView({
   activeUser,
   activeTenant,
   paymentMethods,
-  isDayStarted = true
+  isDayStarted = true,
+  menusDuJour = [],
+  detailMenusJour = []
 }: POSViewProps) {
   // POS States
   const [searchQuery, setSearchQuery] = useState('');
@@ -269,7 +273,7 @@ export default function POSView({
     y += 4;
     doc.setFont("helvetica", "italic");
     doc.setFontSize(6.5);
-    doc.text("La saveur authentique de nos terroirs !", 40, y, { align: "center" });
+    doc.text(activeTenant?.slogan || "La saveur authentique de nos terroirs !", 40, y, { align: "center" });
     y += 3.5;
     
     const printTimestamp = new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
@@ -278,6 +282,11 @@ export default function POSView({
     // 9. Process download callback
     doc.save(`Facture-${order.number}.pdf`);
   };
+
+  // Find current menu of today to respect real-time availability adjustments
+  const todayStr = '2026-06-23'; // Align with platform mock date for reliable evaluation
+  const todayMenu = menusDuJour.find(m => m.dateMenu === todayStr && m.tenantId === tenantId);
+  const todayMenuDetails = todayMenu ? detailMenusJour.filter(d => d.menuJourId === todayMenu.id) : [];
 
   // Filter Dishes
   const filteredDishes = dishes.filter(dish => {
@@ -698,12 +707,29 @@ export default function POSView({
 
           {filteredDishes.map((dish) => {
             const stockLevel = getIngredientStockLevel(dish.id);
+            const menuDetail = todayMenuDetails.find(d => d.platId === dish.id);
+            const isEpuise = menuDetail ? menuDetail.availability === 'EPUISE' : false;
+            const isSuspendu = menuDetail ? menuDetail.availability === 'SUSPENDU' : false;
+            const isIndisponible = isEpuise || isSuspendu;
+
             return (
               <div
                 key={dish.id}
                 id={`pos-dish-${dish.id}`}
-                onClick={() => handleAddDish(dish)}
-                className="bg-white rounded-lg border border-gray-150 overflow-hidden cursor-pointer hover:border-[#1E4E8C] transition-all flex flex-col justify-between group shadow-2xs hover:shadow-xs relative"
+                onClick={() => {
+                  if (isEpuise) {
+                    alert("Ce plat est marqué comme ÉPUISÉ sur le menu du jour.");
+                    return;
+                  }
+                  if (isSuspendu) {
+                    alert("Ce plat est suspendu sur le menu d'aujourd'hui.");
+                    return;
+                  }
+                  handleAddDish(dish);
+                }}
+                className={`bg-white rounded-lg border border-gray-150 overflow-hidden transition-all flex flex-col justify-between group shadow-2xs hover:shadow-xs relative ${
+                  isIndisponible ? 'opacity-85 cursor-not-allowed select-none' : 'cursor-pointer hover:border-[#1E4E8C]'
+                }`}
               >
                 {/* Visual image container */}
                 <div className="h-28 overflow-hidden relative bg-gray-100">
@@ -713,8 +739,22 @@ export default function POSView({
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     referrerPolicy="no-referrer"
                   />
-                  {/* Stock flag */}
-                  {stockLevel === 'RUPTURE' ? (
+                  {/* Stock / Menu availability flags */}
+                  {isEpuise ? (
+                    <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center p-2 text-center">
+                      <span className="bg-red-650 text-white font-extrabold text-[10px] px-2 py-1 rounded-sm uppercase tracking-wider animate-pulse mb-1">
+                        ÉPUISÉ
+                      </span>
+                      <span className="text-[9px] text-gray-300">Indisponible en cuisine</span>
+                    </div>
+                  ) : isSuspendu ? (
+                    <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center p-2 text-center">
+                      <span className="bg-amber-600 text-white font-extrabold text-[10px] px-2 py-1 rounded-sm uppercase tracking-wider mb-1">
+                        SUSPENDU
+                      </span>
+                      <span className="text-[9px] text-gray-300">Temporairement retiré</span>
+                    </div>
+                  ) : stockLevel === 'RUPTURE' ? (
                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                       <span className="bg-red-650 text-white font-bold text-[10px] px-2 py-0.5 rounded uppercase tracking-wider">
                         Rupture ing.
@@ -1112,7 +1152,7 @@ export default function POSView({
 
                 <div className="text-center pt-4 border-t border-gray-350 mt-4">
                   <p className="font-semibold text-[10px]">MERCI POUR VOTRE COMMANDE !</p>
-                  <p className="text-[9px] text-gray-400 italic mt-0.5 font-sans">La saveur authentique de nos terroirs !</p>
+                  <p className="text-[9px] text-gray-400 italic mt-0.5 font-sans">{activeTenant?.slogan || "La saveur authentique de nos terroirs !"}</p>
                 </div>
               </div>
             </div>

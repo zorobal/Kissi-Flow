@@ -725,3 +725,177 @@ export const initialAuditLogs: AuditLog[] = [
   { id: 'aud-3', timestamp: '2026-06-07T12:15:00Z', userId: 'user-cashier', userName: 'Marie Caissière', action: 'Création de la commande CMD-202606-0001', module: 'POS / CAISSE', tenantId: 'tenant-douala' },
   { id: 'aud-4', timestamp: '2026-06-08T08:30:00Z', userId: 'user-manager', userName: 'Kengne Sylvain', action: 'Paiement facture d\'achat BC-202606-0001 (91,000 FCFA)', module: 'COMPTABILITÉ', tenantId: 'tenant-douala' }
 ];
+
+// Seed data for Non-Food Products (Hors-Alimentation)
+export const initialNonFoodItems = [
+  {
+    id: 'nf-boite-douala',
+    code: 'NF-EMB-BOITE',
+    name: 'Boîtes Emballage Carton (M)',
+    category: 'EMBALLAGE',
+    description: 'Boîtes pliables en carton kraft pour emporter les repas de taille Moyenne.',
+    stockActual: 450,
+    stockMin: 100,
+    stockMax: 1000,
+    unit: 'Pièce',
+    cmp: 150,
+    lastPurchasePrice: 150,
+    supplierId: 'sup-coop',
+    active: true,
+    tenantId: 'tenant-douala'
+  },
+  {
+    id: 'nf-boite-yaounde',
+    code: 'NF-EMB-BOITE',
+    name: 'Boîtes Emballage Carton (M)',
+    category: 'EMBALLAGE',
+    description: 'Boîtes pliables en carton kraft pour emporter les repas de taille Moyenne.',
+    stockActual: 220,
+    stockMin: 100,
+    stockMax: 1000,
+    unit: 'Pièce',
+    cmp: 150,
+    lastPurchasePrice: 150,
+    active: true,
+    tenantId: 'tenant-yaounde'
+  },
+  {
+    id: 'nf-savon-douala',
+    code: 'NF-HYG-SAVON',
+    name: 'Savon Liquide Mains (Doseur Marie)',
+    category: 'HYGIENE',
+    description: 'Savon liquide antiseptique pour le lavage des mains du personnel et des clients.',
+    stockActual: 18,
+    stockMin: 5,
+    stockMax: 40,
+    unit: 'Litre',
+    cmp: 1200,
+    lastPurchasePrice: 1250,
+    active: true,
+    tenantId: 'tenant-douala'
+  },
+  {
+    id: 'nf-savon-yaounde',
+    code: 'NF-HYG-SAVON',
+    name: 'Savon Liquide Mains (Doseur Marie)',
+    category: 'HYGIENE',
+    description: 'Savon liquide antiseptique pour le lavage des mains du personnel et des clients.',
+    stockActual: 12,
+    stockMin: 5,
+    stockMax: 40,
+    unit: 'Litre',
+    cmp: 1200,
+    lastPurchasePrice: 1200,
+    active: true,
+    tenantId: 'tenant-yaounde'
+  },
+  {
+    id: 'nf-deter-douala',
+    code: 'NF-HYG-DETER',
+    name: 'Détergent Sol Sols Lavande (5L)',
+    category: 'HYGIENE',
+    description: 'Produit détergent désinfectant parfumé pour l’entretien des sols du restaurant.',
+    stockActual: 8,
+    stockMin: 2,
+    stockMax: 20,
+    unit: 'Bidon 5L',
+    cmp: 4500,
+    lastPurchasePrice: 4500,
+    active: true,
+    tenantId: 'tenant-douala'
+  },
+  {
+    id: 'nf-essui-douala',
+    code: 'NF-FOUR-ESSUI',
+    name: 'Papier Essuie-tout Professionnel',
+    category: 'FOURNITURE',
+    description: 'Bobine d\'essuie-tout fort pouvoir absorbant pour la cuisine et la plonge.',
+    stockActual: 24,
+    stockMin: 10,
+    stockMax: 80,
+    unit: 'Rouleau',
+    cmp: 850,
+    lastPurchasePrice: 850,
+    active: true,
+    tenantId: 'tenant-douala'
+  },
+  {
+    id: 'nf-sac-douala',
+    code: 'NF-EMB-SAC',
+    name: 'Sacs Plastiques Biodégradables (G)',
+    category: 'EMBALLAGE',
+    description: 'Grands sacs de transport poignées bretelles pour les livraisons volumineuses.',
+    stockActual: 110,
+    stockMin: 50,
+    stockMax: 500,
+    unit: 'Pièce',
+    cmp: 85,
+    lastPurchasePrice: 85,
+    active: true,
+    tenantId: 'tenant-douala'
+  },
+  {
+    id: 'nf-gants-douala',
+    code: 'NF-SEC-GANTS',
+    name: 'Gants de Cuisine Jetables (M)',
+    category: 'MAINTENANCE',
+    description: 'Boîtes de gants jetables en vinyle pour le dressage et les préparations froides.',
+    stockActual: 1, // Alerte stock faible récurrent
+    stockMin: 3,
+    stockMax: 20,
+    unit: 'Boîte',
+    cmp: 2500,
+    lastPurchasePrice: 2400,
+    active: true,
+    tenantId: 'tenant-douala'
+  }
+];
+
+export const initialNonFoodMovements = [
+  {
+    id: 'nfmvt-1',
+    date: '2026-06-05 09:00',
+    itemId: 'nf-boite-douala',
+    itemName: 'Boîtes Emballage Carton (M)',
+    type: 'IN',
+    quantity: 500,
+    unitCost: 150,
+    value: 75000,
+    reference: 'Avis de Livraison BL-90812',
+    userId: 'user-warehouse',
+    userName: 'Jean Magasinier',
+    comment: 'Approvisionnement grossiste de cartons d’emballages pour ventes à emporter.',
+    tenantId: 'tenant-douala'
+  },
+  {
+    id: 'nfmvt-2',
+    date: '2026-06-06 18:30',
+    itemId: 'nf-boite-douala',
+    itemName: 'Boîtes Emballage Carton (M)',
+    type: 'OUT',
+    quantity: 50,
+    unitCost: 150,
+    value: 7500,
+    reference: 'Sortie Directe Service',
+    userId: 'user-cashier',
+    userName: 'Marie Caissière',
+    comment: 'Mise à disposition en salle pour les emballages à emporter pour le week-end.',
+    tenantId: 'tenant-douala'
+  },
+  {
+    id: 'nfmvt-3',
+    date: '2026-06-08 10:30',
+    itemId: 'nf-essui-douala',
+    itemName: 'Papier Essuie-tout Professionnel',
+    type: 'OUT',
+    quantity: 6,
+    unitCost: 850,
+    value: 5100,
+    reference: 'Usage Interne Plonge/Cuisine',
+    userId: 'user-warehouse',
+    userName: 'Jean Magasinier',
+    comment: 'Remise de 6 rouleaux au chef de plonge pour l’hygiène hebdomadaire.',
+    tenantId: 'tenant-douala'
+  }
+];
+

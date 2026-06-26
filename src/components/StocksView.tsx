@@ -79,6 +79,19 @@ export default function StocksView({
   const [selectedLossBatch, setSelectedLossBatch] = useState<StockBatch | null>(null);
   const [lossQtyInput, setLossQtyInput] = useState<number>(0);
   const [lossCommentInput, setLossCommentInput] = useState<string>('');
+  const [lossReasonType, setLossReasonType] = useState<string>('DLC_PERIME');
+
+  const getReasonLabel = (type: string) => {
+    switch (type) {
+      case 'DLC_PERIME': return 'Péremption / DLC dépassée';
+      case 'PANNE_COURANT': return 'Panne d\'électricité / Coupures';
+      case 'ACCIDENT_CUISINE': return 'Accident de cuisine / Casse';
+      case 'ALTERATION_QUALITE': return 'Altération qualité / Moisi';
+      case 'AVARIE_TRANSPORT': return 'Avarie logistique / Transport';
+      case 'VOL_ECART': return 'Vol ou écart d’inventaire';
+      default: return 'Autre motif exceptionnel';
+    }
+  };
 
   const handleCreateManualMovement = () => {
     if (!mvtIngId || !mvtQty || mvtQty <= 0) {
@@ -150,6 +163,8 @@ export default function StocksView({
     const unitPrice = parentIng ? (parentIng.cmp || parentIng.lastPurchasePrice || 0) : 0;
     const computedLossAmount = lossQtyInput * unitPrice;
 
+    const fullComment = `Perte [${getReasonLabel(lossReasonType)}] : ${lossCommentInput || 'Aucun détail'}`;
+
     // Update stock batch list
     const updatedBatches = (stockBatches || []).map(b => {
       if (b.id === selectedLossBatch.id) {
@@ -163,7 +178,8 @@ export default function StocksView({
           lossValidated: true,
           lossValidatedBy: activeUser ? activeUser.name : 'ADMIN/MANAGER',
           lossValidatedDate: new Date().toISOString().split('T')[0],
-          lossComment: [b.lossComment, lossCommentInput].filter(Boolean).join('; ') || 'Gaspillage / Périmé'
+          lossReason: lossReasonType,
+          lossComment: [b.lossComment, fullComment].filter(Boolean).join('; ')
         };
       }
       return b;
@@ -183,15 +199,15 @@ export default function StocksView({
       quantity: -lossQtyInput,
       unitCost: unitPrice,
       value: -computedLossAmount,
-      reference: 'DLC_PERIME',
+      reference: lossReasonType,
       userId: activeUser.id,
       userName: activeUser.name,
-      comment: `Perte Financière validée - Lot ${selectedLossBatch.batchNum} (${lossQtyInput} ${selectedLossBatch.unit}) - ${lossCommentInput || 'DLC dépassée'}`,
+      comment: `Perte Financière validée [Motif: ${getReasonLabel(lossReasonType)}] - Lot ${selectedLossBatch.batchNum} (${lossQtyInput} ${selectedLossBatch.unit}) - Commentaire: ${lossCommentInput || 'Gaspillage d\'ingrédients'}`,
       tenantId: tenantId
     });
 
     logsAction(
-      `Perte financière validée lot ${selectedLossBatch.batchNum} (${lossQtyInput} ${selectedLossBatch.unit}) : ${computedLossAmount.toLocaleString()} FCFA`,
+      `Perte financière validée lot ${selectedLossBatch.batchNum} (${lossQtyInput} ${selectedLossBatch.unit}) | Motif: ${getReasonLabel(lossReasonType)} : ${computedLossAmount.toLocaleString()} FCFA`,
       'STOCK / INVENTAIRE'
     );
 
@@ -199,6 +215,7 @@ export default function StocksView({
     setSelectedLossBatch(null);
     setLossQtyInput(0);
     setLossCommentInput('');
+    setLossReasonType('DLC_PERIME');
   };
 
   // Update specific physical count quantity input
@@ -270,10 +287,15 @@ export default function StocksView({
   const totalStockAssetsValue = tenantIngredients.reduce((sum, ing) => sum + (ing.stockActual * (ing.cmp || 0)), 0);
   const lowStockAlertsCount = tenantIngredients.filter(ing => ing.stockActual <= ing.stockMin && ing.active).length;
 
+  const tenantBatches = (stockBatches || []).filter(b => b.tenantId === tenantId);
+  const totalLossFromBatchesAmount = tenantBatches
+    .filter(b => b.lossDeclared && b.lossValidated)
+    .reduce((sum, b) => sum + (b.lossAmount || 0), 0);
+
   return (
     <div className="space-y-6" id="stocks-module">
       {/* Visual KPI indicators */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-lg border border-gray-150 shadow-2xs flex items-center justify-between">
           <div>
             <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Actifs en Stock</span>
@@ -281,6 +303,16 @@ export default function StocksView({
           </div>
           <div className="p-2.5 bg-blue-50 text-[#1E4E8C] rounded">
             <Layers className="h-5 w-5" />
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-lg border border-gray-150 shadow-2xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] text-gray-550 font-medium uppercase tracking-wider block leading-tight">Pertes d'Ingrédients</span>
+            <p className="text-xl font-bold font-sans text-red-600 mt-1">{totalLossFromBatchesAmount.toLocaleString()} FCFA</p>
+          </div>
+          <div className="p-2.5 bg-rose-50 text-red-650 rounded">
+            <TrendingDown className="h-5 w-5" />
           </div>
         </div>
 
@@ -859,7 +891,8 @@ export default function StocksView({
                                     onClick={() => {
                                       setSelectedLossBatch(batch);
                                       setLossQtyInput(batch.quantity);
-                                      setLossCommentInput(daysLeft <= 0 ? 'Lot périmé dépassé' : 'Avarie précoce');
+                                      setLossCommentInput(daysLeft <= 0 ? 'Lot périmé dépassé (DLC)' : 'Avarie d’exploitation');
+                                      setLossReasonType(daysLeft <= 0 ? 'DLC_PERIME' : 'ACCIDENT_CUISINE');
                                     }}
                                     className={`px-2.5 py-1 text-[10px] rounded transition font-black uppercase flex items-center gap-1 cursor-pointer ${
                                       daysLeft <= 0 
@@ -1079,14 +1112,34 @@ export default function StocksView({
                   </p>
                 </div>
 
+                {/* Reason Selection */}
+                <div className="space-y-1.5">
+                  <label className="text-gray-650 font-black block text-[10px] uppercase tracking-wider">
+                    Motif / Origine de la perte *
+                  </label>
+                  <select
+                    value={lossReasonType}
+                    onChange={(e) => setLossReasonType(e.target.value)}
+                    className="w-full p-2.5 border border-[#1E4E8C]/20 rounded-lg bg-white font-semibold text-gray-950 focus:border-[#1E4E8C] focus:ring-1 text-xs"
+                  >
+                    <option value="DLC_PERIME">🚨 Péremption / DLC Dépassée</option>
+                    <option value="PANNE_COURANT">🔌 Coupure de courant / Rupture chaîne du froid</option>
+                    <option value="ACCIDENT_CUISINE">🍳 Accident de cuisine / Casse / Renversement</option>
+                    <option value="ALTERATION_QUALITE">🦠 Altération qualité / Produit moisi</option>
+                    <option value="AVARIE_TRANSPORT">🚛 Avarie durant le transport / Livraison</option>
+                    <option value="VOL_ECART">🔍 Vol ou écart d'inventaire constaté</option>
+                    <option value="AUTRE">❓ Autre motif exceptionnel / Force majeure</option>
+                  </select>
+                </div>
+
                 {/* Comments Field */}
                 <div className="space-y-1.5">
                   <label className="text-gray-650 font-black block text-[10px] uppercase tracking-wider">
-                    Motif / Commentaire de validation *
+                    Détails ou Précisions *
                   </label>
                   <textarea
                     rows={2}
-                    placeholder="ex: Perte DLC dépassée, rupture de la chaîne du froid, altération, sâchée commerciale..."
+                    placeholder="ex: coupure prolongée, cuisinière brisée, lot endommagé..."
                     value={lossCommentInput}
                     onChange={(e) => setLossCommentInput(e.target.value)}
                     className="w-full p-2.5 border border-gray-200 rounded-lg bg-white font-medium text-gray-950 focus:outline-none focus:ring-1"

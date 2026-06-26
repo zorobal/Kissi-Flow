@@ -69,6 +69,7 @@ export default function AccountingView({
 }: AccountingViewProps) {
   // Tabs: 'REGISTRY' | 'CLOSURES' | 'MANAGE_CLOSURE'
   const [accountingTab, setAccountingTab] = useState<'REGISTRY' | 'CLOSURES' | 'MANAGE_CLOSURE'>('REGISTRY');
+  const [includePrestations, setIncludePrestations] = useState(false);
 
   const tenantMovements = cashMovements.filter(m => m.tenantId === tenantId);
   const tenantClosures = dailyClosures.filter(c => c.tenantId === tenantId);
@@ -478,24 +479,95 @@ export default function AccountingView({
   const cumulDepensesCaisseTotal = tenantMovements.filter(m => m.type === 'OUT').reduce((sum,m)=> sum + m.amount, 0);
   const currentCashbookResidue = cumulVentesCaisseTotal - cumulDepensesCaisseTotal;
 
+  // --- COUPLAGE DYNAMIQUE DES PRESTATIONS DEPUIS LE STOCKAGE LOCAL ---
+  const buffetsList = (() => {
+    try {
+      const saved = localStorage.getItem(`kissine-buffets-${tenantId}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  })();
+
+  const cateringList = (() => {
+    try {
+      const saved = localStorage.getItem(`kissine-catering-${tenantId}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  })();
+
+  // Filtrage des prestations actives (confirmées ou terminées)
+  const prestBuffets = buffetsList.filter((b: any) => b.status === 'CONFIRMED' || b.status === 'COMPLETED');
+  const prestCatering = cateringList.filter((c: any) => c.status === 'CONFIRMED' || c.status === 'COMPLETED');
+
+  const totalPrestationRevenue = prestBuffets.reduce((sum: number, b: any) => sum + ((b.status === 'COMPLETED' ? b.platesRealSold : b.platesExpected) * b.pricePerPlateSold), 0) +
+    prestCatering.reduce((sum: number, c: any) => sum + c.proposedPrice, 0);
+
+  const totalPrestationExpenses = prestBuffets.reduce((sum: number, b: any) => {
+    const ingCost = (b.ingredientsSelected || []).reduce((s: number, item: any) => s + (item.cost || 0), 0);
+    return sum + ingCost + (b.additionalCharges || 0);
+  }, 0) + prestCatering.reduce((sum: number, c: any) => {
+    return sum + (c.status === 'COMPLETED' ? (c.actualCost || c.estimatedCost || 0) : (c.estimatedCost || 0));
+  }, 0);
+
+  const prestNetProfit = totalPrestationRevenue - totalPrestationExpenses;
+
+  // En-caisse finale consolidée ou comptoir uniquement
+  const consolidatedCashbookResidue = includePrestations
+    ? currentCashbookResidue + prestNetProfit
+    : currentCashbookResidue;
+
   return (
     <div className="space-y-6" id="accounting-module">
       {/* Upper ledger summary details */}
-      <div className="bg-gradient-to-r from-[#1E4E8C] to-blue-900 text-white rounded-lg p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div className="space-y-1">
-          <span className="text-xs text-blue-200 uppercase tracking-widest font-semibold flex items-center gap-1.5">
-            Bilan Financier Liquide 
-            <span className="bg-yellow-400 text-slate-900 px-1.5 py-0.2 rounded font-black text-[9px] uppercase">
-              Caisse Comptoir Uniquement
+      <div className="bg-gradient-to-r from-[#1E4E8C] to-blue-900 text-white rounded-lg p-6 shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+        <div className="space-y-2 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-blue-200 uppercase tracking-widest font-semibold flex items-center gap-1.5">
+              Bilan Financier Liquide 
             </span>
-          </span>
-          <h2 className="text-2xl font-bold font-sans">En-Caisse Théorique : {currentCashbookResidue.toLocaleString()} FCFA</h2>
-          <p className="text-[11px] text-blue-100 font-medium leading-relaxed max-w-2xl">
-            Trésorerie cumulée du Point de Vente (Ventes Tactiles Resto enregistrées moins Décaissements de caisse). <strong className="text-amber-200 font-bold">Exclut</strong> les prestations de Buffets & Service Traiteur qui disposent de leurs propres circuits de facturation indépendants dans l'onglet Prestations.
+            <span className={`px-2 py-0.5 rounded font-black text-[9px] uppercase transition-all ${
+              includePrestations ? 'bg-indigo-500 text-white animate-pulse' : 'bg-yellow-400 text-slate-900'
+            }`}>
+              {includePrestations ? '📊 Trésorerie Consolidée (Boissons + Plats + Prestations)' : '☕ Caisse Comptoir Uniquement'}
+            </span>
+          </div>
+          
+          <h2 className="text-2xl font-bold font-sans">
+            En-Caisse Théorique : {consolidatedCashbookResidue.toLocaleString()} FCFA
+          </h2>
+
+          <p className="text-[11px] text-blue-100 font-medium leading-relaxed max-w-3xl">
+            {includePrestations ? (
+              <span>
+                Votre trésorerie unifiée comptabilise les ventes directes du comptoir <strong className="text-amber-200">({currentCashbookResidue.toLocaleString()} F)</strong> cumulées au solde net des prestations de Buffets & Traiteur actives <strong className="text-emerald-300">(+{prestNetProfit.toLocaleString()} F de bénéfice net)</strong>.
+              </span>
+            ) : (
+              <span>
+                Trésorerie cumulée du Point de Vente (Ventes Tactiles Resto enregistrées moins Décaissements de caisse). <strong className="text-amber-200 font-bold">Exclut par défaut</strong> les prestations de Buffets & Service Traiteur qui disposent de leurs propres circuits de facturation indépendants dans l'onglet Prestations.
+              </span>
+            )}
           </p>
+
+          {/* Toggle button to include/exclude */}
+          <div className="pt-2">
+            <label className="inline-flex items-center gap-2 cursor-pointer bg-blue-950/40 hover:bg-blue-950/60 p-2 px-3 rounded-lg border border-blue-500/20 transition-all">
+              <input
+                type="checkbox"
+                checked={includePrestations}
+                onChange={(e) => setIncludePrestations(e.target.checked)}
+                className="rounded accent-yellow-400 h-3.5 w-3.5"
+              />
+              <span className="text-[10px] font-black uppercase text-yellow-300 tracking-wider">
+                Consolider les prestations (Buffets & Banquets) dans la trésorerie
+              </span>
+            </label>
+          </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 shrink-0">
           <button
             id="mvt-accounting-expense-btn"
             onClick={() => { setNewMvtType('OUT'); setShowMvtModal(true); }}
@@ -514,6 +586,131 @@ export default function AccountingView({
             <span>Saisir Recette / Entrée</span>
           </button>
         </div>
+      </div>
+
+      {/* SCHÉMA & CIRCUIT COMPTABLE EXPLICATIF */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-medium" id="accounting-circuit-explainer">
+        <div className="bg-white p-4 border border-gray-150 rounded-lg space-y-1.5">
+          <div className="flex items-center gap-1.5 font-bold text-gray-900 border-b pb-1.5">
+            <span className="text-[#1E4E8C]">🔌</span>
+            <span>电路 1 : Caisse Comptoir Directe</span>
+          </div>
+          <p className="text-[11px] text-gray-500 leading-relaxed font-normal">
+            Alimentée par l'encaissement immédiat et les tickets tactiles (MoMo, Orange Money, Espèces) au bar et restaurant en temps réel. Suivi strict du tiroir-caisse physique lors des opérations de service quotidiennes.
+          </p>
+        </div>
+
+        <div className="bg-white p-4 border border-gray-150 rounded-lg space-y-1.5">
+          <div className="flex items-center gap-1.5 font-bold text-gray-900 border-b pb-1.5">
+            <span className="text-orange-500">🍲</span>
+            <span>电路 2 : Prestations de Buffets</span>
+          </div>
+          <p className="text-[11px] text-gray-500 leading-relaxed font-normal">
+            Soumis à un devis personnalisé, planification lointaine et déstockage anticipé des denrées. Les fonds transitent souvent par acompte bancaire ou chèque d’entreprise. Circuit distinct pour préserver le Food Cost.
+          </p>
+        </div>
+
+        <div className="bg-white p-4 border border-gray-150 rounded-lg space-y-1.5">
+          <div className="flex items-center gap-1.5 font-bold text-gray-900 border-b pb-1.5">
+            <span className="text-indigo-600">💼</span>
+            <span>电路 3 : Contrats de Traiteur</span>
+          </div>
+          <p className="text-[11px] text-gray-500 leading-relaxed font-normal">
+            Prestations haut de gamme gérées sous forme de contrat de banquet avec coûts d'exploitation logistiques (décoration, serveurs temporaires, transport). Validation de clôture avec saisie de son coût réel de revient.
+          </p>
+        </div>
+      </div>
+
+      {/* TABLEAU BILAN DYNAMIQUES DES PRESTATIONS CONSOLIDABLES */}
+      <div className="bg-white border rounded-lg overflow-hidden p-5 space-y-4" id="prestations-reconciliation-sheet">
+        <div className="flex items-center justify-between border-b pb-2">
+          <div className="flex items-center gap-2">
+            <span className="p-1 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded">📈</span>
+            <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">
+              Feuille de Réconciliation & Bilan Financier des Prestations
+            </h3>
+          </div>
+          <span className="text-[10px] bg-slate-100 text-slate-700 font-extrabold px-2 py-0.5 rounded-full uppercase">
+            {prestBuffets.length + prestCatering.length} Événements Actifs (Confirmés / Clôturés)
+          </span>
+        </div>
+
+        {(prestBuffets.length === 0 && prestCatering.length === 0) ? (
+          <p className="text-[11px] text-gray-400 italic text-center py-2">
+            Aucune prestation (Buffet ou Traiteur) n'est actuellement confirmée ou complétée dans l'onglet des Prestations.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-gray-50 uppercase text-[9px] font-bold tracking-wider text-gray-500 border-b">
+                  <th className="px-4 py-2.5">Date</th>
+                  <th className="px-4 py-2.5">Type de Prestation</th>
+                  <th className="px-4 py-2.5">Intitulé / Client</th>
+                  <th className="px-4 py-2.5">Statut</th>
+                  <th className="px-4 py-2.5 text-right">Chiffre d'Affaires</th>
+                  <th className="px-4 py-2.5 text-right">Coûts d'Exploitation</th>
+                  <th className="px-4 py-2.5 text-right">Marge / Bénéfice Net</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y font-semibold text-gray-700">
+                {prestBuffets.map((b: any) => {
+                  const ingCost = (b.ingredientsSelected || []).reduce((sum: number, item: any) => sum + (item.cost || 0), 0);
+                  const totalCost = ingCost + (b.additionalCharges || 0);
+                  const caReal = (b.status === 'COMPLETED' ? b.platesRealSold : b.platesExpected) * b.pricePerPlateSold;
+                  const netProfit = caReal - totalCost;
+                  return (
+                    <tr key={b.id} className="hover:bg-slate-50/50">
+                      <td className="px-4 py-3 font-mono text-gray-400">{b.date}</td>
+                      <td className="px-4 py-3 text-orange-600 font-extrabold">🍲 Buffet d'Entreprise</td>
+                      <td className="px-4 py-3 font-bold text-gray-900">{b.title}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block px-1.5 py-0.2 rounded text-[8px] font-extrabold uppercase ${
+                          b.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-700'
+                        }`}>
+                          {b.status === 'COMPLETED' ? 'Terminé' : 'Confirmé'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-gray-900">{caReal.toLocaleString()} F</td>
+                      <td className="px-4 py-3 text-right font-mono text-red-500">{totalCost.toLocaleString()} F</td>
+                      <td className="px-4 py-3 text-right font-mono text-emerald-600 font-bold">+{netProfit.toLocaleString()} F</td>
+                    </tr>
+                  );
+                })}
+
+                {prestCatering.map((c: any) => {
+                  const finalCost = c.status === 'COMPLETED' ? (c.actualCost || c.estimatedCost || 0) : (c.estimatedCost || 0);
+                  const netProfit = c.proposedPrice - finalCost;
+                  return (
+                    <tr key={c.id} className="hover:bg-slate-50/50">
+                      <td className="px-4 py-3 font-mono text-gray-400">{c.date}</td>
+                      <td className="px-4 py-3 text-indigo-700 font-extrabold">💼 Service Traiteur</td>
+                      <td className="px-4 py-3 font-bold text-gray-900">{c.clientName}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block px-1.5 py-0.2 rounded text-[8px] font-extrabold uppercase ${
+                          c.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-700'
+                        }`}>
+                          {c.status === 'COMPLETED' ? 'Terminé' : 'Confirmé'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-gray-900">{c.proposedPrice.toLocaleString()} F</td>
+                      <td className="px-4 py-3 text-right font-mono text-red-500">{finalCost.toLocaleString()} F</td>
+                      <td className="px-4 py-3 text-right font-mono text-emerald-600 font-bold">+{netProfit.toLocaleString()} F</td>
+                    </tr>
+                  );
+                })}
+
+                {/* Combined totals line inside table footer */}
+                <tr className="bg-gray-50/50 font-black text-xs text-gray-900 border-t-2 border-gray-200">
+                  <td className="px-4 py-3 text-center uppercase text-[10px]" colSpan={4}>Consolidation Totale des Prestations Actives :</td>
+                  <td className="px-4 py-3 text-right font-mono text-indigo-800">{totalPrestationRevenue.toLocaleString()} F</td>
+                  <td className="px-4 py-3 text-right font-mono text-red-700">{totalPrestationExpenses.toLocaleString()} F</td>
+                  <td className="px-4 py-3 text-right font-mono text-emerald-700 bg-emerald-50/50 font-black">+{prestNetProfit.toLocaleString()} F</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Selector Sub tabs in ledger with dynamic Export button */}

@@ -299,7 +299,7 @@ export default function SettingsView({
   };
 
   const activeTenant = tenants.find(t => t.id === activeTenantId) || tenants[0];
-  const tenantUsers = users.filter(u => u.tenantId === activeTenantId);
+  const tenantUsers = users.filter(u => u.tenantId === activeTenantId && u.role !== 'SUPERADMIN');
 
   // LOCAL LOCKSCREEN PASSWORD SUPPORT
   const [localPassword, setLocalPassword] = useState<string>(() => {
@@ -344,7 +344,7 @@ export default function SettingsView({
   const [restAddress, setRestAddress] = useState(activeTenant?.address || '');
   const [restCity, setRestCity] = useState(activeTenant?.city || '');
   const [restCountry, setRestCountry] = useState(activeTenant?.country || '');
-  const [restSlogan, setRestSlogan] = useState(activeTenant?.logoUrl?.startsWith('data:image') ? '' : ''); // we'll use a separate state
+  const [restSlogan, setRestSlogan] = useState(activeTenant?.slogan || '');
   const [restLogo, setRestLogo] = useState(activeTenant?.logoUrl || '');
 
   // Synchronize dynamic tenant settings when activeTenant switches
@@ -355,6 +355,7 @@ export default function SettingsView({
       setRestAddress(activeTenant.address || '');
       setRestCity(activeTenant.city || '');
       setRestCountry(activeTenant.country || '');
+      setRestSlogan(activeTenant.slogan || '');
       setRestLogo(activeTenant.logoUrl || '');
     }
   }, [activeTenantId, activeTenant]);
@@ -903,6 +904,7 @@ export default function SettingsView({
       address: restAddress,
       city: restCity,
       country: restCountry,
+      slogan: restSlogan,
       logoUrl: restLogo
     });
     logsAction(`Mise à jour des informations de l'établissement: ${restName}`, 'PARAMÈTRES');
@@ -981,6 +983,7 @@ export default function SettingsView({
       logsAction(`Mise à jour du profil de ${userName} et de ses autorisations de modules`, 'PARAMÈTRES');
       showToast(`Les modifications du collaborateur "${userName}" ont été enregistrées !`, "success");
     } else {
+      const tempPass = `${userRole.toLowerCase()}2026`;
       const newUser: User = {
         id: `user-${Date.now()}`,
         name: userName,
@@ -988,11 +991,14 @@ export default function SettingsView({
         role: userRole,
         tenantId: activeTenantId,
         active: userStatus,
-        allowedModules: userModules
+        allowedModules: userModules,
+        password: tempPass,
+        mustChangePassword: true,
+        passwordChanged: false
       };
       onAddUser(newUser);
       logsAction(`Création d'un nouveau collaborateur "${userName}" avec autorisations personnalisées`, 'PARAMÈTRES');
-      showToast(`Le collaborateur "${userName}" a été inscrit avec succès !`, "success");
+      showToast(`Le collaborateur "${userName}" a été inscrit avec succès ! Mot de passe provisoire : ${tempPass}`, "success");
     }
     setShowUserModal(false);
   };
@@ -1339,6 +1345,18 @@ export default function SettingsView({
                     type="text"
                     value={restCountry}
                     onChange={(e) => setRestCountry(e.target.value)}
+                    className="w-full p-2.5 border border-gray-250 bg-gray-50 rounded text-gray-950 focus:outline-[#1E4E8C]"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 space-y-1">
+                  <label className="text-gray-650 block font-semibold">Slogan de l'établissement (Pied de page ticket / menu)</label>
+                  <input
+                    id="settings-company-slogan"
+                    type="text"
+                    placeholder="ex: Au cœur de la tradition et de la fraîcheur..."
+                    value={restSlogan}
+                    onChange={(e) => setRestSlogan(e.target.value)}
                     className="w-full p-2.5 border border-gray-250 bg-gray-50 rounded text-gray-950 focus:outline-[#1E4E8C]"
                   />
                 </div>
