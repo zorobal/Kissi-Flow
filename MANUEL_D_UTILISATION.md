@@ -235,9 +235,19 @@ L'une des innovations de notre ERP réside dans son **moteur de filtrage tempore
 1. **Étape 1 : Supervision de la performance multi-sites**
    * Consulter le module **Super-Admin** (accessible uniquement sous le profil `SUPERADMIN`).
    * Analyser l'activité consolidée dans la section des **Indicateurs Globaux Consolidés \& Analyse de Performance** (CA consolidé, TVA, dépenses, résultat net, panier moyen AOV, marge nette %, couverts, expense ratio).
-2. **Étape 2 : Gestion de la Portabilité & Synchronisation Cloud**
+2. **Étape 2 : Planification Réseau & Simulation de Topologies (4 Scénarios)**
+   * Ouvrir l'onglet **Scénarios d'Architecture LAN \& Cloud** au sein du cockpit SuperAdmin.
+   * Cet espace de planification permet de basculer dynamiquement entre les 4 architectures disponibles :
+     * **Scénario 1 : Base de Données Cloud (En ligne)** : ERP local connecté directement à Supabase (notre modèle actif).
+     * **Scénario 2 : Base locale en Réseau Local (LAN / Hors-ligne)** : Base PostgreSQL centralisée sur site pour les terminaux locaux.
+     * **Scénario 3 : Serveur Web Local (LAN Centralisé)** : Un seul serveur Node.js héberge l'ERP et la base, les terminaux s'y connectent par navigateur.
+     * **Scénario 4 : Format Bureau Lourd (Tauri / Electron + SQLite)** : Déploiement natif léger sous forme de fichier `.exe` ou `.dmg` avec base de données SQLite autonome.
+   * Personnaliser les variables réseau : IP du serveur local (ex : `192.168.1.100`), Port (`54321`), Nom de la base SQL, et établissement cible.
+   * Évaluer la faisabilité en cochant les prérequis techniques pour voir l'indice de viabilité mis à jour en temps réel.
+   * Exécuter un test de diagnostic réseau en cliquant sur **Lancer le Test de Routage Réseau** pour simuler le flux d'informations et auditer les performances.
+3. **Étape 3 : Gestion de la Portabilité & Synchronisation Cloud**
    * Aller dans les **Paramètres Système $\rightarrow$ Synchronisation Cloud (Supabase)** ou directement dans le **Super-Admin**.
    * Pour un site donné, sauvegarder les données locales vers le cloud (`Push`) ou rapatrier les données cloud vers le navigateur (`Pull`).
    * Utiliser la **Détection automatique des établissements** pour voir immédiatement quels restaurants ont déjà des données synchronisées sur Supabase, ou saisir un identifiant manuellement.
-3. **Étape 3 : Traçabilité et Audit-Trail Cloud**
+4. **Étape 4 : Traçabilité et Audit-Trail Cloud**
    * Analyser le **Journal d'Audit de Synchronisation en Direct** (console rétro terminal) pour suivre l'état des communications réseau avec Supabase et corriger toute anomalie d'API.

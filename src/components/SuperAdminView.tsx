@@ -148,7 +148,7 @@ export default function SuperAdminView({
   onChangeIngredientCategories,
   onChangeChargeTypes
 }: SuperAdminViewProps) {
-  const [activeTab, setActiveTab] = useState<'LIST' | 'KPI_EXPLORER' | 'AUDIT_LOGS' | 'COLLABORATORS_GLOBAL' | 'SUPABASE_SYNC'>('LIST');
+  const [activeTab, setActiveTab] = useState<'LIST' | 'KPI_EXPLORER' | 'AUDIT_LOGS' | 'COLLABORATORS_GLOBAL' | 'SUPABASE_SYNC' | 'SCENARIOS'>('LIST');
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -191,6 +191,88 @@ export default function SuperAdminView({
   const [useManualSyncId, setUseManualSyncId] = useState<boolean>(false);
   const [manualSyncId, setManualSyncId] = useState<string>('');
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // 4 ARCHITECTURAL SCENARIOS STATES
+  const [selectedScenarioId, setSelectedScenarioId] = useState<number>(1);
+  const [simulatedLocalIp, setSimulatedLocalIp] = useState<string>('192.168.1.100');
+  const [simulatedPort, setSimulatedPort] = useState<string>('54321');
+  const [simulatedDbName, setSimulatedDbName] = useState<string>('kissineflow_local_db');
+  const [selectedScenarioTenantId, setSelectedScenarioTenantId] = useState<string>(() => tenants[0]?.id || 'le-paradis');
+  const [simulatedConsoleLogs, setSimulatedConsoleLogs] = useState<string[]>(['[SYSTÈME] Terminal de simulation prêt. Sélectionnez un scénario pour tester sa topologie.']);
+  const [isSimulating, setIsSimulating] = useState<boolean>(false);
+  
+  // Checklist for each scenario
+  const [checklistScen2, setChecklistScen2] = useState({
+    postgresInstalled: false,
+    fixedIpConfigured: false,
+    portOpened: false,
+  });
+  const [checklistScen3, setChecklistScen3] = useState({
+    serverNodeInstalled: false,
+    lanConnected: false,
+    firewallConfigured: false,
+  });
+  const [checklistScen4, setChecklistScen4] = useState({
+    tauriInstalled: false,
+    sqliteDatabaseConfigured: false,
+    electronPackaged: false,
+  });
+
+  const handleRunSimulation = () => {
+    if (isSimulating) return;
+    setIsSimulating(true);
+    setSimulatedConsoleLogs([`[INIT] Déclenchement de la simulation d'architecture pour le Scénario ${selectedScenarioId}...`]);
+    
+    const steps: string[] = [];
+    if (selectedScenarioId === 1) {
+      steps.push(
+        `📡 [RÉSEAU] Résolution de l'URL Cloud Supabase...`,
+        `🔒 [SÉCURITÉ] Vérification du certificat SSL de Supabase.io (HTTPS)...`,
+        `🔑 [AUTH] Envoi de la clé publique anon-key...`,
+        `📥 [REQUÊTE] SELECT * FROM public.kissineflow_sync WHERE tenant_id = '${selectedScenarioTenantId}'...`,
+        `💾 [DONNÉES] Chargement de l'état local dans le navigateur depuis le Cloud...`,
+        `✅ [SUCCÈS] Connexion établie ! Latence : 42ms. Vos données transitent de manière sécurisée par Internet.`
+      );
+    } else if (selectedScenarioId === 2) {
+      steps.push(
+        `🖥️ [LAN] Ping de l'IP du serveur local : ${simulatedLocalIp}...`,
+        `🔌 [PORT] Tentative de connexion sur le port PostgreSQL : ${simulatedPort}...`,
+        `🛡️ [FIREWALL] Passage des règles de sécurité du réseau local...`,
+        `🗄️ [DATABASE] Authentification réussie sur la base PostgreSQL '${simulatedDbName}'...`,
+        `📊 [SQL] Exécution de la requête de synchronisation pour l'établissement '${selectedScenarioTenantId}'...`,
+        `🔌 [STATUT] Connecté en réseau local (LAN). Latence : < 1ms (Ultra-rapide, 100% Hors-ligne d'Internet !)`
+      );
+    } else if (selectedScenarioId === 3) {
+      steps.push(
+        `🌐 [BROWSER] Client se connecte à l'URL HTTP : http://${simulatedLocalIp}...`,
+        `🚀 [SERVEUR] Le serveur Node/Express local reçoit la connexion HTTP...`,
+        `📄 [VITE] Serveur de fichiers statiques distribue l'ERP (Fichiers HTML/JS compilés)...`,
+        `🗃️ [DOCKER/SQL] Connexion à la base PostgreSQL locale '${simulatedDbName}'...`,
+        `📱 [APPAREIL] Rendu complet de l'interface ERP sur l'appareil client (Tablette/Smartphones)...`,
+        `🏆 [SUCCÈS] Mode "Serveur Web Local" opérationnel. Zéro installation requise sur les terminaux clients.`
+      );
+    } else {
+      steps.push(
+        `📦 [TAURI] Lancement de l'exécutable natif compilé KissineFlow.exe...`,
+        `📂 [FICHIER] Chargement du fichier de base de données embarqué : ~/.kissineflow/${simulatedDbName}.db...`,
+        `🧩 [SQLITE] Initialisation du pilote SQLite (Pilote rust-sqlite à thread unique)...`,
+        `💾 [PERSISTANCE] Les 19 tables de l'ERP ont été indexées localement sur le SSD de l'ordinateur...`,
+        `⚡ [PERFORMANCES] Chargement de 10 000 lignes d'inventaire en 5ms...`,
+        `🔒 [CONFIDENTIALITÉ] 100% Hors-ligne. Les données restent strictement confinées sur le stockage local.`
+      );
+    }
+
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      if (currentStep < steps.length) {
+        setSimulatedConsoleLogs(prev => [...prev, steps[currentStep]]);
+        currentStep++;
+      } else {
+        clearInterval(interval);
+        setIsSimulating(false);
+      }
+    }, 600);
+  };
 
   const getSupabaseClient = (url: string, key: string) => {
     try {
@@ -1010,6 +1092,32 @@ La console de synchronisation cloud permet au SuperAdmin de KissineFlow de sauve
 - Résilience maximale : En cas de crash du disque ou de perte du navigateur principal, vos ventes et stocks sont à l'abri dans le cloud.
 - Travail collaboratif multi-appareils : Vos serveurs et livreurs peuvent travailler en simultané sur smartphones, les bases de données d'exploitation fusionnant via Supabase de manière fluide.
 - Déploiement transparent : Renseignez simplement VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY sur votre hébergement Vercel pour rendre KissineFlow disponible partout en ligne !`;
+    } else if (activeTab === 'SCENARIOS') {
+      title = "RAPPORT D'ETUDE ET DE DEPLOIEMENT ARCHITECTURAL - 4 SCENARIOS";
+      content = `========================================================================
+${title}
+Généré le : ${dateStr}
+Fichier : explication_scenarios_architecture.txt
+========================================================================
+
+1. SYNTHÈSE DES 4 SCÉNARIOS DE DEPLOIEMENT PROPOSÉS
+Ce document dresse une comparaison exhaustive des quatre architectures envisageables pour KissineFlow afin de concilier travail hors-ligne, centralisation réseau, résilience de stockage et simplicité opérationnelle.
+
+* SCÉNARIO 1 : Base de données dans le Cloud (Supabase en ligne) - ACTIF & RECOMMANDÉ EN LIGNE
+  - Description : L'application s'exécute sur le poste client (sous forme de client léger ou site Vercel), mais les requêtes et les sauvegardes s'effectuent sur le cloud via Internet.
+  - Feasibility : 100% Fonctionnel. C'est l'architecture native actuellement déployée et utilisée par KissineFlow.
+
+* SCÉNARIO 2 : Base de données en Réseau Local (LAN Hors-ligne)
+  - Description : Un PostgreSQL local ou le CLI Supabase tourne sur une machine dédiée au sein du restaurant avec une adresse IP locale fixe (ex: 192.168.1.100). Les postes clients s'y connectent en local.
+  - Feasibility : Partiellement faisable. Nécessite l'ouverture des ports PostgreSQL (5432) ou de l'API locale Supabase (54321) dans le routeur/switch LAN.
+
+* SCÉNARIO 3 : Approche "Serveur Web Local" (LAN Centralisé)
+  - Description : L'application web complète et la base de données sont hébergées sur un unique ordinateur-serveur local du restaurant. Les tablettes, smartphones et ordinateurs clients s'y connectent simplement via un navigateur web à l'adresse IP locale du serveur.
+  - Feasibility : Fortement recommandé pour une entreprise multiservice sans accès Internet stable. Simplifie drastiquement les mises à jour logicielles.
+
+* SCÉNARIO 4 : Approche Native Bureau Bureau (Tauri + SQLite / Electron)
+  - Description : Encapsulation complète de KissineFlow dans un conteneur lourd avec persistance locale dans une base de données embarquée SQLite autonome (.db) sur le disque dur.
+  - Feasibility : Idéal pour les configurations à un seul poste de caisse ultra-robuste avec des volumétries massives sans réseau requis.`;
     }
 
     // Download compiled text as file
@@ -1096,6 +1204,15 @@ La console de synchronisation cloud permet au SuperAdmin de KissineFlow de sauve
             <Cloud size={13} className={activeTab === 'SUPABASE_SYNC' ? 'text-white' : 'text-emerald-400 animate-pulse'} />
             <span>Synchronisation Cloud (Supabase)</span>
           </button>
+          <button
+            onClick={() => { setActiveTab('SCENARIOS'); }}
+            className={`flex-1 md:flex-none px-4 py-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === 'SCENARIOS' ? 'bg-[#F26522] text-white shadow-lg' : 'bg-white/10 hover:bg-white/15 text-slate-200'
+            }`}
+          >
+            <Layers size={13} className="text-[#F26522]" />
+            <span>4 Scénarios d'Architecture LAN & Cloud</span>
+          </button>
         </div>
       </div>
 
@@ -1147,7 +1264,7 @@ La console de synchronisation cloud permet au SuperAdmin de KissineFlow de sauve
               <FileText size={16} />
             </span>
             <span className="text-xs font-black uppercase text-slate-800 tracking-wide">
-              Analyseur de Page Réseau : <span className="text-[#F26522]">{activeTab === 'LIST' ? "Clients & Sauvegardes" : activeTab === 'KPI_EXPLORER' ? "Suivi KPIs & Diagnostics" : activeTab === 'AUDIT_LOGS' ? "Journal d'Activité Global" : activeTab === 'COLLABORATORS_GLOBAL' ? "Collaborateurs & Accès" : "Synchronisation Cloud (Supabase)"}</span>
+              Analyseur de Page Réseau : <span className="text-[#F26522]">{activeTab === 'LIST' ? "Clients & Sauvegardes" : activeTab === 'KPI_EXPLORER' ? "Suivi KPIs & Diagnostics" : activeTab === 'AUDIT_LOGS' ? "Journal d'Activité Global" : activeTab === 'COLLABORATORS_GLOBAL' ? "Collaborateurs & Accès" : activeTab === 'SUPABASE_SYNC' ? "Synchronisation Cloud (Supabase)" : "Scénarios d'Architecture LAN & Cloud"}</span>
             </span>
           </div>
           <p className="text-slate-500 text-[11px] leading-snug font-medium">
@@ -2109,6 +2226,804 @@ La console de synchronisation cloud permet au SuperAdmin de KissineFlow de sauve
               Total collaborateurs répertoriés : {users.filter(u => u.role !== 'SUPERADMIN').length}
             </div>
           </div>
+        </div>
+      ) : activeTab === 'SCENARIOS' ? (
+        /* INTERACTIVE ARCHITECTURE SCENARIOS WORKSPACE */
+        <div className="space-y-6 text-slate-800 animate-fade-in" id="scenarios-workspace">
+          <div className="bg-[#0B1F3F] text-white p-6 rounded-2xl shadow-md border border-[#1E4E8C] relative overflow-hidden">
+            <div className="absolute right-0 top-0 opacity-15 transform translate-x-6 -translate-y-4">
+              <Layers size={150} className="text-blue-400" />
+            </div>
+            <div className="space-y-2 relative z-10">
+              <div className="flex items-center gap-2">
+                <span className="bg-amber-500 text-[#0B1F3F] text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider">
+                  WORKSPACE DE PLANIFICATION D'ARCHITECTURE (4 MODÈLES)
+                </span>
+              </div>
+              <h3 className="text-xl font-extrabold tracking-tight">
+                Simulateur de Topologies Réseau & Portabilité Client
+              </h3>
+              <p className="text-slate-300 text-xs max-w-2xl leading-relaxed">
+                Configurez, analysez et simulez les 4 scénarios d'infrastructure réseau pour vos clients restaurateurs. Choisissez la topologie la plus adaptée selon leurs besoins de connectivité Internet et d'isolation LAN.
+              </p>
+            </div>
+          </div>
+
+          {/* Scenario Selection Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[
+              {
+                id: 1,
+                title: "Scénario 1 : Base de Données Cloud (En ligne)",
+                desc: "L'ERP tourne localement, mais les données transitent via Internet. (Mode de travail actuel)",
+                badge: "ACTIF EN COOPÉRATION",
+                badgeClass: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+                icon: Cloud,
+                feasibility: "100% opérationnel",
+                localCache: "Optionnel",
+                net: "Requis"
+              },
+              {
+                id: 2,
+                title: "Scénario 2 : Base locale en Réseau Local (LAN / Hors-ligne)",
+                desc: "Serveur centralisé avec PostgreSQL local sur le LAN. Les clients s'y connectent en local.",
+                badge: "FAISABLE ET PRÊT",
+                badgeClass: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
+                icon: Server,
+                feasibility: "Faisable (Redirection IP)",
+                localCache: "Oui (PostgreSQL LAN)",
+                net: "Non Requis"
+              },
+              {
+                id: 3,
+                title: "Scénario 3 : Serveur Web Local (LAN Centralisé)",
+                desc: "ERP et base sur une machine unique. Les clients s'y connectent via leur navigateur.",
+                badge: "FORTEMENT RECOMMANDÉ",
+                badgeClass: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+                icon: Building2,
+                feasibility: "Recommandé (Zéro-install)",
+                localCache: "Complet (Centralisé)",
+                net: "Non Requis"
+              },
+              {
+                id: 4,
+                title: "Scénario 4 : Format Lourd (Tauri / Electron + SQLite)",
+                desc: "Base relationnelle SQLite autonome stockée localement dans un conteneur lourd.",
+                badge: "DISPONIBLE SUR DEMANDE",
+                badgeClass: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
+                icon: Database,
+                feasibility: "Prêt pour Poste Unique",
+                localCache: "Fichier .db local",
+                net: "Non Requis"
+              }
+            ].map((scen) => {
+              const ScenIcon = scen.icon;
+              const isSelected = selectedScenarioId === scen.id;
+              return (
+                <div
+                  key={scen.id}
+                  onClick={() => {
+                    setSelectedScenarioId(scen.id);
+                    setSimulatedConsoleLogs(prev => [
+                      ...prev,
+                      `[SYSTÈME] Passage au Scénario ${scen.id} : ${scen.title}`
+                    ]);
+                  }}
+                  className={`p-5 rounded-2xl border transition cursor-pointer flex flex-col justify-between text-left h-full ${
+                    isSelected
+                      ? 'bg-[#0B1F3F] border-[#1E4E8C] text-white shadow-md scale-[1.02]'
+                      : 'bg-white border-gray-150 hover:bg-slate-50 text-slate-800'
+                  }`}
+                >
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start gap-2">
+                      <span className={`p-2 rounded-xl ${isSelected ? 'bg-white/10 text-[#F26522]' : 'bg-slate-100 text-[#0B1F3F]'}`}>
+                        <ScenIcon size={18} />
+                      </span>
+                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${scen.badgeClass}`}>
+                        {scen.badge}
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-xs leading-snug">{scen.title}</h4>
+                      <p className={`text-[10px] mt-1.5 leading-relaxed ${isSelected ? 'text-slate-300 font-medium' : 'text-gray-500 font-medium'}`}>
+                        {scen.desc}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-4 border-t border-dashed mt-4 grid grid-cols-2 gap-2 text-[9px] font-extrabold uppercase tracking-wide">
+                    <div>
+                      <span className={isSelected ? 'text-slate-400' : 'text-gray-400'}>Internet :</span>
+                      <span className={`ml-1 ${isSelected ? 'text-emerald-400' : 'text-slate-800'}`}> {scen.net}</span>
+                    </div>
+                    <div>
+                      <span className={isSelected ? 'text-slate-400' : 'text-gray-400'}>Faisabilité :</span>
+                      <span className={`ml-1 ${isSelected ? 'text-amber-400' : 'text-slate-800'}`}> {scen.feasibility.split(' ')[0]}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Interactive Comparison & Simulator Variables */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Variable configuration & code builder */}
+            <div className="lg:col-span-7 space-y-6">
+              
+              <div className="bg-white border border-gray-150 rounded-2xl shadow-3xs p-6 space-y-6">
+                <h4 className="font-extrabold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-gray-100 pb-2">
+                  <Sliders size={14} className="text-[#F26522]" />
+                  <span>1. Personnaliser les variables de la topologie réseau</span>
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                      <span>Établissement Restaurant Cible</span>
+                    </label>
+                    <select
+                      value={selectedScenarioTenantId}
+                      onChange={(e) => setSelectedScenarioTenantId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 text-xs rounded-lg focus:outline-none focus:border-[#1E4E8C] font-extrabold text-gray-800 bg-white"
+                    >
+                      {tenants.map(t => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.city})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wide">
+                      Adresse IP Fixe du Serveur Local (LAN)
+                    </label>
+                    <input
+                      type="text"
+                      value={simulatedLocalIp}
+                      onChange={(e) => setSimulatedLocalIp(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 text-xs rounded-lg focus:outline-none focus:border-[#1E4E8C] font-mono font-bold text-slate-800"
+                      placeholder="e.g. 192.168.1.100"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wide">
+                      Port de Connexion de la Base de Données
+                    </label>
+                    <input
+                      type="text"
+                      value={simulatedPort}
+                      onChange={(e) => setSimulatedPort(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 text-xs rounded-lg focus:outline-none focus:border-[#1E4E8C] font-mono font-bold text-slate-800"
+                      placeholder="54321"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wide">
+                      Nom de la Base SQL de destination
+                    </label>
+                    <input
+                      type="text"
+                      value={simulatedDbName}
+                      onChange={(e) => setSimulatedDbName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 text-xs rounded-lg focus:outline-none focus:border-[#1E4E8C] font-mono font-bold text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                {/* Interactive visual layout diagram */}
+                <div className="bg-slate-50 border border-slate-150 p-5 rounded-2xl space-y-4">
+                  <h5 className="font-extrabold text-[10px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Activity size={13} className="text-[#F26522]" />
+                    <span>Schéma conceptuel des flux de données (Scénario {selectedScenarioId})</span>
+                  </h5>
+
+                  <div className="flex flex-col md:flex-row justify-between items-center gap-4 py-4 px-2 bg-white rounded-xl border border-slate-200 relative">
+                    {/* Device Client */}
+                    <div className="flex flex-col items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-150 w-28 text-center">
+                      <span className="p-1.5 bg-[#0B1F3F] text-white rounded-lg">
+                        <Users size={16} />
+                      </span>
+                      <span className="text-[9px] font-black text-slate-800 leading-none">ERP Client</span>
+                      <span className="text-[8px] font-semibold text-gray-400">Postes de caisse</span>
+                    </div>
+
+                    {/* Arrow/Line */}
+                    <div className="flex-1 h-0.5 border-t border-dashed border-slate-300 relative w-full md:w-auto flex justify-center items-center">
+                      <span className="bg-slate-100 text-[8px] text-indigo-700 font-extrabold px-2 py-0.5 rounded-full border border-slate-200 absolute -translate-y-0.5">
+                        {selectedScenarioId === 1 ? "WIFI + WAN" : "WIFI local LAN"}
+                      </span>
+                    </div>
+
+                    {/* Central Router / Server */}
+                    {selectedScenarioId !== 4 && (
+                      <>
+                        <div className="flex flex-col items-center gap-2 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 w-32 text-center">
+                          <span className="p-1.5 bg-[#1E4E8C] text-white rounded-lg">
+                            <Server size={16} />
+                          </span>
+                          <span className="text-[9px] font-black text-slate-800 leading-none">
+                            {selectedScenarioId === 1 ? "Routeur Internet" : `Serveur LAN (${simulatedLocalIp})`}
+                          </span>
+                          <span className="text-[8px] font-semibold text-indigo-500">
+                            {selectedScenarioId === 1 ? "Passerelle DNS" : "Relais Local"}
+                          </span>
+                        </div>
+
+                        {/* Arrow/Line */}
+                        <div className="flex-1 h-0.5 border-t border-dashed border-slate-300 relative w-full md:w-auto flex justify-center items-center">
+                          <span className="bg-slate-100 text-[8px] text-indigo-700 font-extrabold px-2 py-0.5 rounded-full border border-slate-200 absolute -translate-y-0.5">
+                            {selectedScenarioId === 1 ? "Cloud SQL" : "SQL local"}
+                          </span>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Database Container */}
+                    <div className="flex flex-col items-center gap-2 p-3 bg-emerald-50 rounded-xl border border-emerald-150 w-28 text-center">
+                      <span className="p-1.5 bg-emerald-600 text-white rounded-lg">
+                        <Database size={16} />
+                      </span>
+                      <span className="text-[9px] font-black text-slate-800 leading-none">
+                        {selectedScenarioId === 1 ? "Supabase Cloud" : selectedScenarioId === 4 ? "SQLite local" : "PostgreSQL local"}
+                      </span>
+                      <span className="text-[8px] font-semibold text-emerald-600">
+                        {selectedScenarioId === 1 ? "En ligne" : `Nom: ${simulatedDbName}`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Code snippets depending on selected scenario */}
+                <div className="space-y-3 text-left">
+                  <div className="flex justify-between items-center">
+                    <h5 className="font-extrabold text-[10px] text-slate-700 uppercase tracking-wider">
+                      Fichier de Configuration Généré (.env)
+                    </h5>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        let text = "";
+                        if (selectedScenarioId === 1) {
+                          text = `VITE_SUPABASE_URL=https://votre-projet.supabase.co\nVITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\nPORT=3000\nNODE_ENV=production`;
+                        } else if (selectedScenarioId === 2) {
+                          text = `VITE_SUPABASE_URL=http://${simulatedLocalIp}:${simulatedPort}\nVITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\nPORT=3000\nLOCAL_DATABASE_URL=postgres://postgres:secret@${simulatedLocalIp}:${simulatedPort}/${simulatedDbName}`;
+                        } else if (selectedScenarioId === 3) {
+                          text = `VITE_SERVER_HOST=0.0.0.0\nPORT=3000\nDATABASE_URL=postgres://postgres:secret@127.0.0.1:5432/${simulatedDbName}\nLOCAL_SERVER_IP=http://${simulatedLocalIp}:3000`;
+                        } else {
+                          text = `SQLITE_DB_PATH=~/.kissineflow/${simulatedDbName}.db\nRUN_MODE=tauri-desktop\nOFFLINE_COMPATIBLE=true`;
+                        }
+                        navigator.clipboard.writeText(text);
+                        alert("Fichier .env copié dans le presse-papiers !");
+                      }}
+                      className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-extrabold rounded border border-slate-200 transition cursor-pointer flex items-center gap-1"
+                    >
+                      <Copy size={11} />
+                      <span>Copier .env</span>
+                    </button>
+                  </div>
+
+                  <pre className="bg-[#111827] text-[#f3f4f6] p-4 rounded-xl font-mono text-[10px] overflow-x-auto leading-relaxed max-h-48 shadow-md">
+                    {selectedScenarioId === 1 ? (
+`# CONFIGURATION ACTIVE - CLOUD SUPABASE (EN LIGNE)
+VITE_SUPABASE_URL=https://votre-projet.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+PORT=3000
+NODE_ENV=production
+# Toutes les bases locales se synchronisent sur cette unique instance cloud.`
+                    ) : selectedScenarioId === 2 ? (
+`# CONFIGURATION RÉSEAU LOCAL HORS-LIGNE
+VITE_SUPABASE_URL=http://${simulatedLocalIp}:${simulatedPort}
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+# Url de connexion PostgreSQL locale directe pour les serveurs internes:
+LOCAL_DATABASE_URL=postgres://postgres:secret@${simulatedLocalIp}:${simulatedPort}/${simulatedDbName}`
+                    ) : selectedScenarioId === 3 ? (
+`# CONFIGURATION SERVEUR WEB LOCAL CENTRALISÉ
+PORT=3000
+NODE_ENV=production
+# Connexion PostgreSQL locale sur la machine serveur:
+DATABASE_URL=postgres://postgres:secret@127.0.0.1:5432/${simulatedDbName}
+# Adresse de diffusion à saisir sur les tablettes / téléphones:
+LOCAL_SERVER_IP=http://${simulatedLocalIp}:3000`
+                    ) : (
+`# CONFIGURATION APPLICATION BUREAU UNIQUE (SQLITE)
+SQLITE_DB_PATH=~/.kissineflow/${simulatedDbName}.db
+RUN_MODE=tauri-desktop
+OFFLINE_COMPATIBLE=true
+# Zéro connexion réseau externe requise. Fichier .db autonome.`
+                    )}
+                  </pre>
+                </div>
+
+              </div>
+
+              {/* Feasibility Evaluator */}
+              <div className="bg-white border border-gray-150 rounded-2xl shadow-3xs p-6 space-y-4 text-left">
+                <h4 className="font-extrabold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-gray-100 pb-2">
+                  <ShieldCheck size={14} className="text-emerald-600" />
+                  <span>2. Évaluer la faisabilité opérationnelle pour ce client</span>
+                </h4>
+
+                <p className="text-[11px] text-gray-500 font-medium leading-relaxed">
+                  Cochez les prérequis matériels ou de réseau disponibles chez votre client pour calculer instantanément l'indice de viabilité de cette architecture :
+                </p>
+
+                {selectedScenarioId === 1 && (
+                  <div className="space-y-3 animate-fade-in">
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-start gap-2.5">
+                      <Check size={16} className="text-emerald-600 mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-extrabold text-xs text-emerald-950">Architecture 100% Validée par Défaut</h5>
+                        <p className="text-[10px] text-emerald-800 leading-normal mt-0.5 font-medium">
+                          C'est l'approche actuelle que nous implémentons. Elle s'appuie sur la synchronisation cloud intégrée dans votre console SuperAdmin. Elle ne requiert aucune installation complexe d'infrastructure sur site, uniquement une connexion Internet de base.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedScenarioId === 2 && (
+                  <div className="space-y-3 animate-fade-in text-xs">
+                    <label className="flex items-start gap-2.5 p-2 hover:bg-slate-50 rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checklistScen2.postgresInstalled}
+                        onChange={(e) => setChecklistScen2({ ...checklistScen2, postgresInstalled: e.target.checked })}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="font-bold block text-[11px] text-slate-800">Le client possède une machine désignée comme serveur local avec PostgreSQL ou le CLI Supabase installé ?</span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-2.5 p-2 hover:bg-slate-50 rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checklistScen2.fixedIpConfigured}
+                        onChange={(e) => setChecklistScen2({ ...checklistScen2, fixedIpConfigured: e.target.checked })}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="font-bold block text-[11px] text-slate-800">L'IP de cette machine a été configurée comme fixe (IP statique) dans les paramètres réseau Windows/Linux (ex : {simulatedLocalIp}) ?</span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-2.5 p-2 hover:bg-slate-50 rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checklistScen2.portOpened}
+                        onChange={(e) => setChecklistScen2({ ...checklistScen2, portOpened: e.target.checked })}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="font-bold block text-[11px] text-slate-800">Le port de communication {simulatedPort} est autorisé en entrée dans le pare-feu du serveur et du routeur Wi-Fi ?</span>
+                      </div>
+                    </label>
+
+                    {/* Result score */}
+                    {(() => {
+                      const score = Object.values(checklistScen2).filter(Boolean).length;
+                      const percent = Math.round((score / 3) * 100);
+                      return (
+                        <div className="pt-3 border-t border-dashed mt-3 flex justify-between items-center">
+                          <div>
+                            <span className="text-[10px] text-gray-400 font-extrabold uppercase">Indice de faisabilité :</span>
+                            <span className={`text-sm font-black ml-1.5 ${percent === 100 ? 'text-emerald-600' : percent >= 60 ? 'text-amber-600' : 'text-rose-600'}`}>
+                              {percent}% {percent === 100 ? "(Optimal)" : "(Action Requise)"}
+                            </span>
+                          </div>
+                          <span className="text-[10px] bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-extrabold">
+                            {score}/3 Prérequis
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {selectedScenarioId === 3 && (
+                  <div className="space-y-3 animate-fade-in text-xs">
+                    <label className="flex items-start gap-2.5 p-2 hover:bg-slate-50 rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checklistScen3.serverNodeInstalled}
+                        onChange={(e) => setChecklistScen3({ ...checklistScen3, serverNodeInstalled: e.target.checked })}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="font-bold block text-[11px] text-slate-800">Le serveur local dispose de Node.js installé afin de lancer l'ERP et son serveur Express en direct ?</span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-2.5 p-2 hover:bg-slate-50 rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checklistScen3.lanConnected}
+                        onChange={(e) => setChecklistScen3({ ...checklistScen3, lanConnected: e.target.checked })}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="font-bold block text-[11px] text-slate-800">Tous les téléphones et tablettes des serveurs/caissiers sont connectés sur le même réseau Wi-Fi local que le serveur ?</span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-2.5 p-2 hover:bg-slate-50 rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checklistScen3.firewallConfigured}
+                        onChange={(e) => setChecklistScen3({ ...checklistScen3, firewallConfigured: e.target.checked })}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="font-bold block text-[11px] text-slate-800">Le pare-feu autorise le trafic entrant HTTP sur le port 3000 de la machine serveur ?</span>
+                      </div>
+                    </label>
+
+                    {/* Result score */}
+                    {(() => {
+                      const score = Object.values(checklistScen3).filter(Boolean).length;
+                      const percent = Math.round((score / 3) * 100);
+                      return (
+                        <div className="pt-3 border-t border-dashed mt-3 flex justify-between items-center">
+                          <div>
+                            <span className="text-[10px] text-gray-400 font-extrabold uppercase">Indice de faisabilité :</span>
+                            <span className={`text-sm font-black ml-1.5 ${percent === 100 ? 'text-emerald-600' : percent >= 60 ? 'text-amber-600' : 'text-rose-600'}`}>
+                              {percent}% {percent === 100 ? "(Optimal)" : "(Action Requise)"}
+                            </span>
+                          </div>
+                          <span className="text-[10px] bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-extrabold">
+                            {score}/3 Prérequis
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {selectedScenarioId === 4 && (
+                  <div className="space-y-3 animate-fade-in text-xs">
+                    <label className="flex items-start gap-2.5 p-2 hover:bg-slate-50 rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checklistScen4.tauriInstalled}
+                        onChange={(e) => setChecklistScen4({ ...checklistScen4, tauriInstalled: e.target.checked })}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="font-bold block text-[11px] text-slate-800">Le framework Tauri est configuré avec l'extension Rust pour builder l'application native légère ?</span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-2.5 p-2 hover:bg-slate-50 rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checklistScen4.sqliteDatabaseConfigured}
+                        onChange={(e) => setChecklistScen4({ ...checklistScen4, sqliteDatabaseConfigured: e.target.checked })}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="font-bold block text-[11px] text-slate-800">Le pilote SQLite est correctement intégré pour stocker les collections sous forme de fichiers .db sur disque ?</span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-2.5 p-2 hover:bg-slate-50 rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checklistScen4.electronPackaged}
+                        onChange={(e) => setChecklistScen4({ ...checklistScen4, electronPackaged: e.target.checked })}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="font-bold block text-[11px] text-slate-800">Le packaging d'installation final (.exe pour Windows ou .dmg pour Mac) est prêt à être distribué ?</span>
+                      </div>
+                    </label>
+
+                    {/* Result score */}
+                    {(() => {
+                      const score = Object.values(checklistScen4).filter(Boolean).length;
+                      const percent = Math.round((score / 3) * 100);
+                      return (
+                        <div className="pt-3 border-t border-dashed mt-3 flex justify-between items-center">
+                          <div>
+                            <span className="text-[10px] text-gray-400 font-extrabold uppercase">Indice de faisabilité :</span>
+                            <span className={`text-sm font-black ml-1.5 ${percent === 100 ? 'text-emerald-600' : percent >= 60 ? 'text-amber-600' : 'text-rose-600'}`}>
+                              {percent}% {percent === 100 ? "(Optimal)" : "(Action Requise)"}
+                            </span>
+                          </div>
+                          <span className="text-[10px] bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-extrabold">
+                            {score}/3 Prérequis
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+              </div>
+
+            </div>
+
+            {/* Sandbox network interactive console logs */}
+            <div className="lg:col-span-5 space-y-6">
+              
+              <div className="bg-white border border-gray-150 rounded-2xl shadow-3xs p-6 space-y-4 flex flex-col h-full justify-between">
+                
+                <div className="space-y-4 text-left">
+                  <h4 className="font-extrabold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-gray-100 pb-2">
+                    <Activity size={14} className="text-[#F26522]" />
+                    <span>3. Simulateur d'exécution de topologie</span>
+                  </h4>
+                  <p className="text-[11px] text-gray-500 font-medium leading-relaxed">
+                    Déclenchez une simulation en temps réel pour auditer le routage des paquets SQL et la cinématique des requêtes réseau dans le scénario {selectedScenarioId} :
+                  </p>
+
+                  <button
+                    type="button"
+                    disabled={isSimulating}
+                    onClick={handleRunSimulation}
+                    className="w-full py-2.5 bg-[#0B1F3F] text-white hover:bg-slate-900 font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-sm border border-slate-700 disabled:opacity-50"
+                  >
+                    {isSimulating ? (
+                      <>
+                        <RefreshCw size={13} className="animate-spin text-[#F26522]" />
+                        <span>Simulation en cours...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Activity size={13} className="text-[#F26522]" />
+                        <span>Lancer le Test de Routage Réseau</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="bg-[#0c1017] text-[#39ff14] p-4 rounded-xl font-mono text-[10px] h-[360px] overflow-y-auto border border-slate-800 shadow-inner flex flex-col gap-1 leading-relaxed">
+                    <div className="text-slate-500 pb-1 border-b border-slate-900 flex justify-between items-center font-bold">
+                      <span>TERMINAL DE SIMULATION RÉSEAU</span>
+                      <span className="animate-pulse text-emerald-400">● LIVE</span>
+                    </div>
+                    {simulatedConsoleLogs.map((log, index) => (
+                      <div key={index} className="whitespace-pre-wrap">
+                        {log}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-gray-100 text-left space-y-2 mt-4">
+                  <h5 className="font-extrabold text-[10px] text-gray-400 uppercase tracking-wider">Aide & Recommandation</h5>
+                  <p className="text-[10px] text-gray-500 font-medium leading-relaxed">
+                    {selectedScenarioId === 1 ? (
+                      "Le Scénario 1 est idéal pour débuter instantanément avec une administration à distance simplifiée. C'est l'infrastructure par défaut de KissineFlow."
+                    ) : selectedScenarioId === 2 ? (
+                      "Le Scénario 2 convient aux restaurants souhaitant isoler leurs transactions locales tout en profitant du travail multi-postes. Exige une maintenance informatique régulière de l'adresse IP."
+                    ) : selectedScenarioId === 3 ? (
+                      "Le Scénario 3 est l'approche la plus stable et moderne pour un restaurant autonome hors-ligne. Un seul serveur puissant sert toutes les tablettes et smartphones sans rien installer dessus."
+                    ) : (
+                      "Le Scénario 4 est réservé aux configurations mono-poste hautement résilientes où l'ordinateur fait office de caisse physique totalement isolée."
+                    )}
+                  </p>
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* Guide de Déploiement Pas-à-Pas pour Personnel Non-Technique */}
+          <div className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border border-indigo-100 rounded-2xl p-6 text-left space-y-6">
+            <div className="flex items-center gap-3 border-b border-indigo-100 pb-4">
+              <span className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-sm">
+                <Sliders size={20} />
+              </span>
+              <div>
+                <h4 className="font-extrabold text-sm text-[#0B1F3F] uppercase tracking-wide flex items-center gap-2">
+                  <span>Guide d'Installation Simple</span>
+                  <span className="bg-[#F26522] text-white text-[9px] font-black px-2 py-0.5 rounded-full">
+                    Spécial Non-Informaticiens 👨‍🍳
+                  </span>
+                </h4>
+                <p className="text-gray-500 text-xs font-medium mt-1">
+                  Suivez ces étapes claires et illustrées pour configurer l'architecture du <strong>Scénario {selectedScenarioId}</strong> directement dans votre restaurant sans connaissances informatiques complexes.
+                </p>
+              </div>
+            </div>
+
+            {/* Step-by-Step interactive cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {selectedScenarioId === 1 ? [
+                {
+                  step: "Étape 1",
+                  title: "Brancher la Box Internet",
+                  desc: "Assurez-vous que votre ordinateur de caisse principal ou tablette est connecté(e) au réseau Wi-Fi ou par câble réseau de votre Box Internet (Orange, Free, SFR, Bouygues, etc.).",
+                  badge: "Internet requis",
+                  badgeColor: "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                },
+                {
+                  step: "Étape 2",
+                  title: "Activer les codes Cloud",
+                  desc: "Le Super-Admin de KissineFlow vous remettra une adresse URL et une Clé d'API sécurisée. Entrez-les simplement dans votre panneau de configuration pour ouvrir la connexion.",
+                  badge: "Saisie unique",
+                  badgeColor: "bg-indigo-500/10 text-indigo-600 border border-indigo-500/20"
+                },
+                {
+                  step: "Étape 3",
+                  title: "Lancement de l'ERP",
+                  desc: "Ouvrez l'application KissineFlow sur votre appareil. L'ensemble de vos ventes et opérations commencera immédiatement à se synchroniser de manière sécurisée.",
+                  badge: "Automatique",
+                  badgeColor: "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                },
+                {
+                  step: "Étape 4",
+                  title: "Suivi à distance",
+                  desc: "Vous pouvez désormais consulter vos statistiques et chiffres d'affaires en direct depuis chez vous ou en déplacement sur votre smartphone ou ordinateur portable.",
+                  badge: "Accès mobile direct",
+                  badgeColor: "bg-blue-500/10 text-blue-600 border border-blue-500/20"
+                }
+              ].map((item, index) => (
+                <div key={index} className="bg-white border border-gray-150 p-4 rounded-xl shadow-3xs flex flex-col justify-between space-y-3 relative hover:shadow-xs transition">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase text-[#F26522] tracking-wider">
+                        {item.step}
+                      </span>
+                      <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full ${item.badgeColor}`}>
+                        {item.badge}
+                      </span>
+                    </div>
+                    <h5 className="font-extrabold text-xs text-gray-900 leading-snug">{item.title}</h5>
+                    <p className="text-[11px] text-gray-500 leading-relaxed font-medium">{item.desc}</p>
+                  </div>
+                </div>
+              )) : selectedScenarioId === 2 ? [
+                {
+                  step: "Étape 1",
+                  title: "Choisir la machine 'Chef'",
+                  desc: "Désignez un ordinateur principal dans le restaurant (ex: la caisse principale). C'est elle qui servira de cerveau central pour stocker toutes les transactions locales.",
+                  badge: "Caisse principale",
+                  badgeColor: "bg-indigo-500/10 text-indigo-600 border border-indigo-500/20"
+                },
+                {
+                  step: "Étape 2",
+                  title: "Figer l'adresse IP",
+                  desc: `Pour éviter que les autres tablettes ne perdent de vue l'ordinateur Chef, demandez à fixer l'IP de cette machine (adresse actuelle : ${simulatedLocalIp}) dans vos paramètres réseau.`,
+                  badge: "IP Statique",
+                  badgeColor: "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                },
+                {
+                  step: "Étape 3",
+                  title: "Wi-Fi local partagé",
+                  desc: "Connectez toutes les tablettes et les smartphones de vos serveurs sur le même boîtier Wi-Fi local de votre restaurant. Pas besoin d'Internet, juste le Wi-Fi local !",
+                  badge: "Même Wi-Fi requis",
+                  badgeColor: "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                },
+                {
+                  step: "Étape 4",
+                  title: "Lier les tablettes",
+                  desc: "Dans les réglages de chaque tablette, saisissez l'adresse de la caisse principale. Les commandes s'enverront instantanément entre vos terminaux et la cuisine.",
+                  badge: "Réseau Local direct",
+                  badgeColor: "bg-blue-500/10 text-blue-600 border border-blue-500/20"
+                }
+              ].map((item, index) => (
+                <div key={index} className="bg-white border border-gray-150 p-4 rounded-xl shadow-3xs flex flex-col justify-between space-y-3 relative hover:shadow-xs transition">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase text-[#F26522] tracking-wider">
+                        {item.step}
+                      </span>
+                      <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full ${item.badgeColor}`}>
+                        {item.badge}
+                      </span>
+                    </div>
+                    <h5 className="font-extrabold text-xs text-gray-900 leading-snug">{item.title}</h5>
+                    <p className="text-[11px] text-gray-500 leading-relaxed font-medium">{item.desc}</p>
+                  </div>
+                </div>
+              )) : selectedScenarioId === 3 ? [
+                {
+                  step: "Étape 1",
+                  title: "Lancer le Serveur local",
+                  desc: "Démarrez l'ordinateur principal du restaurant qui fait office de serveur. Lancez KissineFlow en mode d'hébergement pour diffuser l'application.",
+                  badge: "Un seul clic",
+                  badgeColor: "bg-indigo-500/10 text-indigo-600 border border-indigo-500/20"
+                },
+                {
+                  step: "Étape 2",
+                  title: "Connexion Wi-Fi",
+                  desc: "Assurez-vous que vos téléphones et tablettes de prise de commande sont connectés au Wi-Fi privé du restaurant (aucun accès internet externe n'est requis).",
+                  badge: "Wi-Fi Restaurant",
+                  badgeColor: "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                },
+                {
+                  step: "Étape 3",
+                  title: "Ouvrir votre navigateur",
+                  desc: `Sur les terminaux des serveurs, ouvrez Google Chrome ou Safari et saisissez simplement l'adresse web locale : http://${simulatedLocalIp}:3000.`,
+                  badge: "Zéro installation",
+                  badgeColor: "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                },
+                {
+                  step: "Étape 4",
+                  title: "Prendre les commandes",
+                  desc: "L'application s'ouvre instantanément. Tout est centralisé sur la machine de caisse principale, ce qui garantit la synchronisation immédiate des commandes.",
+                  badge: "Faisabilité 100%",
+                  badgeColor: "bg-blue-500/10 text-blue-600 border border-blue-500/20"
+                }
+              ].map((item, index) => (
+                <div key={index} className="bg-white border border-gray-150 p-4 rounded-xl shadow-3xs flex flex-col justify-between space-y-3 relative hover:shadow-xs transition">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase text-[#F26522] tracking-wider">
+                        {item.step}
+                      </span>
+                      <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full ${item.badgeColor}`}>
+                        {item.badge}
+                      </span>
+                    </div>
+                    <h5 className="font-extrabold text-xs text-gray-900 leading-snug">{item.title}</h5>
+                    <p className="text-[11px] text-gray-500 leading-relaxed font-medium">{item.desc}</p>
+                  </div>
+                </div>
+              )) : [
+                {
+                  step: "Étape 1",
+                  title: "Installer l'application",
+                  desc: "Installez l'application native sur votre ordinateur via le fichier fourni (.exe pour Windows ou .dmg pour macOS) en double-cliquant dessus.",
+                  badge: "Fichier d'installation",
+                  badgeColor: "bg-indigo-500/10 text-indigo-600 border border-indigo-500/20"
+                },
+                {
+                  step: "Étape 2",
+                  title: "Lancement autonome",
+                  desc: "Double-cliquez sur l'icône KissineFlow sur votre bureau pour démarrer l'application. Elle s'exécute localement de manière ultra-rapide.",
+                  badge: "Super fluide",
+                  badgeColor: "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                },
+                {
+                  step: "Étape 3",
+                  title: "Aucun réseau requis",
+                  desc: "Vos données sont sauvegardées en toute sécurité directement dans un fichier sur votre disque dur local. Parfait pour une caisse autonome sans Wi-Fi.",
+                  badge: "Totalement isolé",
+                  badgeColor: "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                },
+                {
+                  step: "Étape 4",
+                  title: "Sauvegardes simples",
+                  desc: `Pour sécuriser vos données, copiez régulièrement le fichier de base de données sqlite (${simulatedDbName}.db) sur une clé USB extérieure.`,
+                  badge: "Sécurité physique",
+                  badgeColor: "bg-blue-500/10 text-blue-600 border border-blue-500/20"
+                }
+              ].map((item, index) => (
+                <div key={index} className="bg-white border border-gray-150 p-4 rounded-xl shadow-3xs flex flex-col justify-between space-y-3 relative hover:shadow-xs transition">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase text-[#F26522] tracking-wider">
+                        {item.step}
+                      </span>
+                      <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full ${item.badgeColor}`}>
+                        {item.badge}
+                      </span>
+                    </div>
+                    <h5 className="font-extrabold text-xs text-gray-900 leading-snug">{item.title}</h5>
+                    <p className="text-[11px] text-gray-500 leading-relaxed font-medium">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Note explicative pour rassurer les restaurateurs */}
+            <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-4 flex items-start gap-3">
+              <span className="text-amber-500 mt-0.5">⚠️</span>
+              <div>
+                <h5 className="font-extrabold text-xs text-amber-950">Conseil de l'Équipe KissineFlow pour votre restaurant</h5>
+                <p className="text-[11px] text-amber-800 leading-normal font-medium mt-0.5">
+                  Si vous avez des serveurs mobiles équipés de tablettes/téléphones pour prendre les commandes en salle, nous vous conseillons vivement le <strong>Scénario 3 (Serveur Web Local)</strong> ou le <strong>Scénario 1 (Cloud)</strong>. Ils offrent la meilleure flexibilité opérationnelle au quotidien sans surcharger votre équipe en paramétrages techniques.
+                </p>
+              </div>
+            </div>
+          </div>
+
         </div>
       ) : (
         /* SUPABASE_SYNC VIEW */

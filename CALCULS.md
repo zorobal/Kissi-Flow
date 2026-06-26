@@ -112,6 +112,10 @@ Le Cockpit SuperAdmin propose une série de métriques financières consolides e
   $$\text{Expense Ratio} (\%) = \left(\frac{\text{Dépenses \& Charges Totales}}{\text{Chiffre d'Affaires Global}}\right) \times 100$$
   *Indique la part du chiffre d'affaires absorbée par le fonctionnement et l'approvisionnement.*
 
+* **Indice de Faisabilité Opérationnelle de Topologie (Scenario Feasibility) :**
+  $$\text{Indice de Faisabilité} (\%) = \left(\frac{\sum \text{Prérequis Techniques Validés}}{\text{Nombre Total de Prérequis Requises (3)}}\right) \times 100$$
+  *Permet de mesurer objectivement si l'architecture réseau choisie est viable pour l'infrastructure locale du restaurant client.*
+
 ---
 
 ## 4. Interactions et Flux de Données Entre Modules

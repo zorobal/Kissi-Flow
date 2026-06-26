@@ -126,10 +126,13 @@ Ce parcours est conçu de manière directive pour assurer une prise de poste str
   * Imputer les factures de dépenses courantes (électricité, salaires, charges matériels) en répartissant la base HT et la TVA correspondante.
 * **Points critiques** : Les dépenses de caisse doivent correspondre aux tickets d'achats physiques pour éviter les écarts d'audit à la validation.
 
-### Module 6 : Supervision Multi-Site & Synchronisation Cloud (SuperAdmin)
-* **Contenu** : Cockpit SuperAdmin, Détection Cloud Automatique, Restauration & Sauvegarde Supabase.
+### Module 6 : Supervision Multi-Site, Synchronisation Cloud \& Planification Réseau (SuperAdmin)
+* **Contenu** : Cockpit SuperAdmin, Détection Cloud Automatique, Restauration \& Sauvegarde Supabase, Workspace de Simulation de Topologie Réseau.
 * **Objectifs de compétence** :
   * Analyser la performance consolidée du parc de restaurants (AOV, marge bénéficiaire nette %, couverts cumulés, Expense Ratio).
+  * Évaluer, configurer et simuler les 4 scénarios d'architecture pour le déploiement client (Cloud, Réseau local LAN PostgreSQL, Serveur Web local centralisé, Tauri Desktop SQLite autonome).
+  * Personnaliser les variables de la topologie réseau (IP fixe locale, port de connexion, nom de la base SQL) et générer les fichiers `.env` correspondants.
+  * Auditer l'indice de faisabilité opérationnelle basé sur les prérequis matériels d'un client restaurateur.
   * Déclencher des sauvegardes ou restaurations manuelles par site/établissement pour assurer la portabilité absolue.
-  * Auditer le terminal de logs réseau en direct pour diagnostiquer la connectivité avec l'API Supabase.
-* **Points critiques** : La synchronisation Supabase gère l'ensemble des 19 collections locales en un seul bloc pour garantir la cohérence des relations transactionnelles. Une restauration écrase l'état local actuel. Accès strictement confidentiel réservé au rôle `SUPERADMIN`.
+  * Auditer le terminal de logs réseau en direct pour diagnostiquer la connectivité avec l'API Supabase et les pings de la topologie simulée.
+* **Points critiques** : La synchronisation Supabase gère l'ensemble des 19 collections locales en un seul bloc pour garantir la cohérence des relations transactionnelles. L'outil de simulation de topologies permet d'anticiper les contraintes réseau réelles sur site avant le déploiement physique des machines de caisse. Accès strictement confidentiel réservé au rôle `SUPERADMIN`.
