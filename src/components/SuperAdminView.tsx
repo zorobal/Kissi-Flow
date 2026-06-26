@@ -30,8 +30,13 @@ import {
   UserCheck,
   UserX,
   UserPlus,
-  FileText
+  FileText,
+  Cloud,
+  Database,
+  Save,
+  Copy
 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 import { Tenant, User, Order, Ingredient, Expense, UserPermission, AuditLog } from '../types';
 
 interface SuperAdminViewProps {
@@ -48,6 +53,44 @@ interface SuperAdminViewProps {
   onExportTenantData: (tenantId: string) => any;
   logsAction: (action: string, module: string) => void;
   onUpdateUsers?: (updatedUsers: User[]) => void;
+
+  // Additional optional collections for Cloud Syncing
+  dishes?: any[];
+  recipes?: any[];
+  stockMovements?: any[];
+  physicalInventories?: any[];
+  suppliers?: any[];
+  purchaseOrders?: any[];
+  purchaseRequests?: any[];
+  cashMovements?: any[];
+  dailyClosures?: any[];
+  paymentMethods?: any[];
+  unitsOfMeasurement?: any[];
+  businessYears?: any[];
+  dishCategories?: any[];
+  ingredientCategories?: any[];
+  chargeTypes?: any[];
+  activeTenantId?: string;
+  onUpdateTenants?: (updated: any[]) => void;
+  onUpdateDishes?: (updated: any[]) => void;
+  onUpdateIngredients?: (updated: any[]) => void;
+  onUpdateRecipes?: (updated: any[]) => void;
+  onUpdateOrders?: (updated: any[]) => void;
+  onUpdateStockMovements?: (updated: any[]) => void;
+  onUpdatePhysicalInventories?: (updated: any[]) => void;
+  onUpdateSuppliers?: (updated: any[]) => void;
+  onUpdatePurchaseRequests?: (updated: any[]) => void;
+  onUpdatePurchaseOrders?: (updated: any[]) => void;
+  onUpdateCashMovements?: (updated: any[]) => void;
+  onUpdateDailyClosures?: (updated: any[]) => void;
+  onUpdateAuditLogs?: (updated: any[]) => void;
+  onUpdateExpenses?: (updated: any[]) => void;
+  onChangePaymentMethods?: (updated: any[]) => void;
+  onChangeUnitsOfMeasurement?: (updated: any[]) => void;
+  onChangeBusinessYears?: (updated: any[]) => void;
+  onChangeDishCategories?: (updated: any[]) => void;
+  onChangeIngredientCategories?: (updated: any[]) => void;
+  onChangeChargeTypes?: (updated: any[]) => void;
 }
 
 export default function SuperAdminView({
@@ -63,9 +106,47 @@ export default function SuperAdminView({
   onRestoreTenantData,
   onExportTenantData,
   logsAction,
-  onUpdateUsers
+  onUpdateUsers,
+
+  // Destructure optional collections with empty fallbacks
+  dishes = [],
+  recipes = [],
+  stockMovements = [],
+  physicalInventories = [],
+  suppliers = [],
+  purchaseOrders = [],
+  purchaseRequests = [],
+  cashMovements = [],
+  dailyClosures = [],
+  paymentMethods = [],
+  unitsOfMeasurement = [],
+  businessYears = [],
+  dishCategories = [],
+  ingredientCategories = [],
+  chargeTypes = [],
+  activeTenantId = '',
+  onUpdateTenants,
+  onUpdateDishes,
+  onUpdateIngredients,
+  onUpdateRecipes,
+  onUpdateOrders,
+  onUpdateStockMovements,
+  onUpdatePhysicalInventories,
+  onUpdateSuppliers,
+  onUpdatePurchaseRequests,
+  onUpdatePurchaseOrders,
+  onUpdateCashMovements,
+  onUpdateDailyClosures,
+  onUpdateAuditLogs,
+  onUpdateExpenses,
+  onChangePaymentMethods,
+  onChangeUnitsOfMeasurement,
+  onChangeBusinessYears,
+  onChangeDishCategories,
+  onChangeIngredientCategories,
+  onChangeChargeTypes
 }: SuperAdminViewProps) {
-  const [activeTab, setActiveTab] = useState<'LIST' | 'KPI_EXPLORER' | 'AUDIT_LOGS' | 'COLLABORATORS_GLOBAL'>('LIST');
+  const [activeTab, setActiveTab] = useState<'LIST' | 'KPI_EXPLORER' | 'AUDIT_LOGS' | 'COLLABORATORS_GLOBAL' | 'SUPABASE_SYNC'>('LIST');
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -95,6 +176,325 @@ export default function SuperAdminView({
   // Password reset inline state
   const [editingUserPasswordId, setEditingUserPasswordId] = useState<string | null>(null);
   const [tempNewUserPassword, setTempNewUserPassword] = useState('');
+
+  // SUPABASE CLOUD SYNC STATES & HELPER FUNCTIONS
+  const [supabaseUrl, setSupabaseUrl] = useState<string>(() => localStorage.getItem('supabase-sync-url') || (import.meta as any).env?.VITE_SUPABASE_URL || '');
+  const [supabaseKey, setSupabaseKey] = useState<string>(() => localStorage.getItem('supabase-sync-key') || (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '');
+  const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'SUCCESS' | 'ERROR'>('IDLE');
+  const [syncLog, setSyncLog] = useState<string[]>([]);
+  const [showSqlInstructions, setShowSqlInstructions] = useState<boolean>(false);
+  const [selectedSyncTenantId, setSelectedSyncTenantId] = useState<string>(() => activeTenantId || (tenants[0]?.id || ''));
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const getSupabaseClient = (url: string, key: string) => {
+    try {
+      if (!url || !key) return null;
+      return createClient(url.trim(), key.trim(), {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false
+        }
+      });
+    } catch (e) {
+      console.error("Error creating supabase client:", e);
+      return null;
+    }
+  };
+
+  const handleSaveKeys = () => {
+    localStorage.setItem('supabase-sync-url', supabaseUrl.trim());
+    localStorage.setItem('supabase-sync-key', supabaseKey.trim());
+    setToast({ text: "Clés API Supabase enregistrées localement !", type: 'success' });
+    setTimeout(() => setToast(null), 3000);
+    logsAction("SuperAdmin: Enregistrement local des clés d'API Supabase", 'SÉCURITÉ');
+  };
+
+  const handleTestConnection = async () => {
+    if (!supabaseUrl || !supabaseKey) {
+      setSyncLog(["❌ URL ou Clé d'API Supabase manquante."]);
+      setSyncStatus('ERROR');
+      return;
+    }
+
+    setSyncStatus('SYNCING');
+    setSyncLog(["🔄 Test de la connexion à Supabase...", `URL : ${supabaseUrl.trim()}`]);
+
+    const client = getSupabaseClient(supabaseUrl, supabaseKey);
+    if (!client) {
+      setSyncLog(prev => [...prev, "❌ Impossible d'initialiser le client Supabase. Vérifiez les formats."]);
+      setSyncStatus('ERROR');
+      return;
+    }
+
+    try {
+      const { error } = await client
+        .from('kissineflow_sync')
+        .select('id')
+        .limit(1);
+
+      if (error) {
+        setSyncLog(prev => [
+          ...prev,
+          `❌ Échec de la connexion à la table 'kissineflow_sync' : ${error.message}`,
+          "💡 Astuce : Assurez-vous d'avoir exécuté le script SQL d'initialisation dans votre éditeur SQL Supabase pour créer la table."
+        ]);
+        setSyncStatus('ERROR');
+      } else {
+        setSyncLog(prev => [
+          ...prev,
+          "✅ Connexion réussie !",
+          "🎉 L'application peut communiquer de manière sécurisée avec votre base Supabase et la table 'kissineflow_sync' est opérationnelle."
+        ]);
+        setSyncStatus('SUCCESS');
+        logsAction("SuperAdmin: Test de connexion réussi vers Supabase", 'SÉCURITÉ');
+      }
+    } catch (err: any) {
+      setSyncLog(prev => [...prev, `❌ Erreur inattendue : ${err.message || err}`]);
+      setSyncStatus('ERROR');
+    }
+  };
+
+  const handlePushToSupabase = async () => {
+    if (!supabaseUrl || !supabaseKey) {
+      setSyncLog(prev => [...prev, "❌ URL ou Clé d'API Supabase manquante."]);
+      setSyncStatus('ERROR');
+      return;
+    }
+    if (!selectedSyncTenantId) {
+      setSyncLog(prev => [...prev, "❌ Veuillez sélectionner un établissement client à sauvegarder."]);
+      setSyncStatus('ERROR');
+      return;
+    }
+
+    setSyncStatus('SYNCING');
+    setSyncLog(["🔄 Initialisation de la sauvegarde globale (Push) vers Supabase...", `Établissement : ${selectedSyncTenantId}`, `URL : ${supabaseUrl.trim()}`]);
+
+    const client = getSupabaseClient(supabaseUrl, supabaseKey);
+    if (!client) {
+      setSyncLog(prev => [...prev, "❌ Impossible d'initialiser le client Supabase."]);
+      setSyncStatus('ERROR');
+      return;
+    }
+
+    try {
+      const mode = (localStorage.getItem('erp-global-mode') as string || 'CLIENT').toLowerCase();
+      
+      const collections = [
+        { key: 'tenants', data: tenants },
+        { key: 'users', data: users },
+        { key: 'dishes', data: dishes },
+        { key: 'ingredients', data: ingredients },
+        { key: 'recipes', data: recipes },
+        { key: 'orders', data: orders },
+        { key: 'stock-movements', data: stockMovements },
+        { key: 'physical-inventories', data: physicalInventories },
+        { key: 'suppliers', data: suppliers },
+        { key: 'purchase-orders', data: purchaseOrders },
+        { key: 'purchase-requests', data: purchaseRequests },
+        { key: 'cash-movements', data: cashMovements },
+        { key: 'daily-closures', data: dailyClosures },
+        { key: 'audit-logs', data: auditLogs },
+        { key: 'non-food-items', data: localStorage.getItem(`erp-${mode}-non-food-items`) ? JSON.parse(localStorage.getItem(`erp-${mode}-non-food-items`)!) : [] },
+        { key: 'non-food-movements', data: localStorage.getItem(`erp-${mode}-non-food-movements`) ? JSON.parse(localStorage.getItem(`erp-${mode}-non-food-movements`)!) : [] },
+        { key: 'menus-du-jour', data: localStorage.getItem(`erp-${mode}-menus-du-jour`) ? JSON.parse(localStorage.getItem(`erp-${mode}-menus-du-jour`)!) : [] },
+        { key: 'detail-menus-jour', data: localStorage.getItem(`erp-${mode}-detail-menus-jour`) ? JSON.parse(localStorage.getItem(`erp-${mode}-detail-menus-jour`)!) : [] },
+        { key: 'formules-du-jour', data: localStorage.getItem(`erp-${mode}-formules-du-jour`) ? JSON.parse(localStorage.getItem(`erp-${mode}-formules-du-jour`)!) : [] },
+        { key: 'payment-methods', data: paymentMethods },
+        { key: 'units-measurement', data: unitsOfMeasurement },
+        { key: 'business-years', data: businessYears },
+        { key: 'dish-categories', data: dishCategories },
+        { key: 'ingredient-categories', data: ingredientCategories },
+        { key: 'charge-types', data: chargeTypes },
+        { key: 'expenses', data: expenses }
+      ];
+
+      setSyncLog(prev => [...prev, `📦 Compilation de ${collections.length} collections d'entités pour le mode ${mode.toUpperCase()}...`]);
+
+      let successCount = 0;
+      for (const col of collections) {
+        const tenantKey = `${mode}_${selectedSyncTenantId}`;
+        setSyncLog(prev => [...prev, `📤 Envoi de la collection '${col.key}' en cours...`]);
+        
+        const { error } = await client
+          .from('kissineflow_sync')
+          .upsert({
+            tenant_id: tenantKey,
+            data_key: col.key,
+            payload: col.data || [],
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'tenant_id,data_key'
+          });
+
+        if (error) {
+          setSyncLog(prev => [...prev, `⚠️ Échec d'envoi de '${col.key}' : ${error.message}`]);
+          console.error(`Error syncing ${col.key}:`, error);
+        } else {
+          successCount++;
+        }
+      }
+
+      setSyncLog(prev => [
+        ...prev,
+        `🎉 Sauvegarde SuperAdmin réussie ! ${successCount}/${collections.length} collections ont été sécurisées dans Supabase pour l'établissement '${selectedSyncTenantId}'.`,
+        `📈 Horodatage : ${new Date().toLocaleTimeString()}`
+      ]);
+      setSyncStatus('SUCCESS');
+      setToast({ text: `Sauvegarde Cloud réussie pour ${selectedSyncTenantId} !`, type: 'success' });
+      setTimeout(() => setToast(null), 3000);
+      logsAction(`SuperAdmin: Sauvegarde Cloud complète vers Supabase (${successCount} collections) pour le site ${selectedSyncTenantId}`, 'SÉCURITÉ');
+    } catch (err: any) {
+      setSyncLog(prev => [...prev, `❌ Erreur inattendue : ${err.message || err}`]);
+      setSyncStatus('ERROR');
+    }
+  };
+
+  const handlePullFromSupabase = async () => {
+    if (!supabaseUrl || !supabaseKey) {
+      setSyncLog(prev => [...prev, "❌ URL ou Clé d'API Supabase manquante."]);
+      setSyncStatus('ERROR');
+      return;
+    }
+    if (!selectedSyncTenantId) {
+      setSyncLog(prev => [...prev, "❌ Veuillez sélectionner un établissement client à récupérer."]);
+      setSyncStatus('ERROR');
+      return;
+    }
+
+    setSyncStatus('SYNCING');
+    setSyncLog(["🔄 Initialisation de la récupération globale (Pull) depuis Supabase...", `Établissement : ${selectedSyncTenantId}`, `URL : ${supabaseUrl.trim()}`]);
+
+    const client = getSupabaseClient(supabaseUrl, supabaseKey);
+    if (!client) {
+      setSyncLog(prev => [...prev, "❌ Impossible d'initialiser le client Supabase."]);
+      setSyncStatus('ERROR');
+      return;
+    }
+
+    try {
+      const mode = (localStorage.getItem('erp-global-mode') as string || 'CLIENT').toLowerCase();
+      const tenantKey = `${mode}_${selectedSyncTenantId}`;
+      
+      setSyncLog(prev => [...prev, `📡 Récupération des enregistrements pour le site '${tenantKey}'...`]);
+      
+      const { data, error } = await client
+        .from('kissineflow_sync')
+        .select('*')
+        .eq('tenant_id', tenantKey);
+
+      if (error) {
+        setSyncLog(prev => [...prev, `❌ Échec de la récupération : ${error.message}`]);
+        setSyncStatus('ERROR');
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        setSyncLog(prev => [
+          ...prev,
+          `⚠️ Aucun enregistrement trouvé pour l'établissement '${selectedSyncTenantId}' sous le mode ${mode.toUpperCase()}.`,
+          "👉 Effectuez d'abord une sauvegarde ('Push Cloud') depuis un appareil contenant vos données récentes."
+        ]);
+        setSyncStatus('SUCCESS');
+        return;
+      }
+
+      setSyncLog(prev => [...prev, `📥 ${data.length} collections de données reçues. Application en cours...`]);
+
+      let restoredCount = 0;
+      for (const row of data) {
+        const { data_key, payload } = row;
+        if (!payload) continue;
+
+        let restored = false;
+        switch (data_key) {
+          case 'tenants':
+            if (onUpdateTenants) { onUpdateTenants(payload); restored = true; }
+            break;
+          case 'users':
+            if (onUpdateUsers) { onUpdateUsers(payload); restored = true; }
+            break;
+          case 'dishes':
+            if (onUpdateDishes) { onUpdateDishes(payload); restored = true; }
+            break;
+          case 'ingredients':
+            if (onUpdateIngredients) { onUpdateIngredients(payload); restored = true; }
+            break;
+          case 'recipes':
+            if (onUpdateRecipes) { onUpdateRecipes(payload); restored = true; }
+            break;
+          case 'orders':
+            if (onUpdateOrders) { onUpdateOrders(payload); restored = true; }
+            break;
+          case 'stock-movements':
+            if (onUpdateStockMovements) { onUpdateStockMovements(payload); restored = true; }
+            break;
+          case 'physical-inventories':
+            if (onUpdatePhysicalInventories) { onUpdatePhysicalInventories(payload); restored = true; }
+            break;
+          case 'suppliers':
+            if (onUpdateSuppliers) { onUpdateSuppliers(payload); restored = true; }
+            break;
+          case 'purchase-orders':
+            if (onUpdatePurchaseOrders) { onUpdatePurchaseOrders(payload); restored = true; }
+            break;
+          case 'purchase-requests':
+            if (onUpdatePurchaseRequests) { onUpdatePurchaseRequests(payload); restored = true; }
+            break;
+          case 'cash-movements':
+            if (onUpdateCashMovements) { onUpdateCashMovements(payload); restored = true; }
+            break;
+          case 'daily-closures':
+            if (onUpdateDailyClosures) { onUpdateDailyClosures(payload); restored = true; }
+            break;
+          case 'audit-logs':
+            if (onUpdateAuditLogs) { onUpdateAuditLogs(payload); restored = true; }
+            break;
+          case 'payment-methods':
+            if (onChangePaymentMethods) { onChangePaymentMethods(payload); restored = true; }
+            break;
+          case 'units-measurement':
+            if (onChangeUnitsOfMeasurement) { onChangeUnitsOfMeasurement(payload); restored = true; }
+            break;
+          case 'business-years':
+            if (onChangeBusinessYears) { onChangeBusinessYears(payload); restored = true; }
+            break;
+          case 'dish-categories':
+            if (onChangeDishCategories) { onChangeDishCategories(payload); restored = true; }
+            break;
+          case 'ingredient-categories':
+            if (onChangeIngredientCategories) { onChangeIngredientCategories(payload); restored = true; }
+            break;
+          case 'charge-types':
+            if (onChangeChargeTypes) { onChangeChargeTypes(payload); restored = true; }
+            break;
+          case 'expenses':
+            if (onUpdateExpenses) { onUpdateExpenses(payload); restored = true; }
+            break;
+          default:
+            localStorage.setItem(`erp-${mode}-${data_key}`, JSON.stringify(payload));
+            restored = true;
+            break;
+        }
+
+        if (restored) {
+          localStorage.setItem(`erp-${mode}-${data_key}`, JSON.stringify(payload));
+          restoredCount++;
+        }
+      }
+
+      setSyncLog(prev => [
+        ...prev,
+        `🎉 Restauration globale terminée ! ${restoredCount} collections de données appliquées localement avec succès pour l'établissement '${selectedSyncTenantId}'.`
+      ]);
+      setSyncStatus('SUCCESS');
+      setToast({ text: `Restauration Cloud réussie pour ${selectedSyncTenantId} !`, type: 'success' });
+      setTimeout(() => setToast(null), 3000);
+      logsAction(`SuperAdmin: Restauration Cloud complète depuis Supabase pour le site ${selectedSyncTenantId}`, 'SÉCURITÉ');
+    } catch (err: any) {
+      setSyncLog(prev => [...prev, `❌ Erreur inattendue : ${err.message || err}`]);
+      setSyncStatus('ERROR');
+    }
+  };
 
   // Delete Tenant Confirmation Modal
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
@@ -538,6 +938,26 @@ ${filteredUsers.length === 0 ? "Aucun profil de collaborateur ne correspond aux 
 4. CONSEILS DU SUPERADMIN POUR LA SÉCURITÉ DE L'ÉTABLISSEMENT
 - Politique d'Identifiant Unique : Interdisez le partage de comptes de caisse génériques. Chaque caissier de quart doit posséder son propre compte nominatif afin de responsabiliser les saisies et les écarts de caisse en fin de journée.
 - Clé d'accès provisoire : À la création d'un collaborateur, sa clé par défaut doit idéalement être d'un format fort et modifiée dès sa première utilisation dans sa console locale de connexion d'établissement.`;
+    } else if (activeTab === 'SUPABASE_SYNC') {
+      title = "RAPPORT DE SYNCHRONISATION ET BACKUP CLOUD - SUPABASE";
+      content = `========================================================================
+${title}
+Généré le : ${dateStr}
+Fichier : explication_synchronisation_supabase.txt
+========================================================================
+
+1. PRÉSENTATION DE CETTE PAGE
+La console de synchronisation cloud permet au SuperAdmin de KissineFlow de sauvegarder l'intégralité des données d'un établissement client vers un hébergement sécurisé en ligne (Supabase), permettant ainsi la réplication instantanée sur tablette ou smartphone de livraison tout en hébergeant l'application en ligne sur Vercel.
+
+2. CONFIGURATION ACTUELLE DU CANAL CLOUD
+- URL de votre API Supabase : ${supabaseUrl || "Non renseigné"}
+- Établissement sélectionné : ${selectedSyncTenantId || "Aucun"}
+- Statut opérationnel de la connexion : ${syncStatus}
+
+3. AVANTAGES DE CETTE ARCHITECTURE DECENTRALISÉE
+- Résilience maximale : En cas de crash du disque ou de perte du navigateur principal, vos ventes et stocks sont à l'abri dans le cloud.
+- Travail collaboratif multi-appareils : Vos serveurs et livreurs peuvent travailler en simultané sur smartphones, les bases de données d'exploitation fusionnant via Supabase de manière fluide.
+- Déploiement transparent : Renseignez simplement VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY sur votre hébergement Vercel pour rendre KissineFlow disponible partout en ligne !`;
     }
 
     // Download compiled text as file
@@ -615,6 +1035,15 @@ ${filteredUsers.length === 0 ? "Aucun profil de collaborateur ne correspond aux 
             <Users size={13} />
             <span>Collaborateurs & Accès</span>
           </button>
+          <button
+            onClick={() => { setActiveTab('SUPABASE_SYNC'); setSyncLog([]); }}
+            className={`flex-1 md:flex-none px-4 py-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === 'SUPABASE_SYNC' ? 'bg-[#F26522] text-white shadow-lg' : 'bg-white/10 hover:bg-white/15 text-slate-200'
+            }`}
+          >
+            <Cloud size={13} className={activeTab === 'SUPABASE_SYNC' ? 'text-white' : 'text-emerald-400 animate-pulse'} />
+            <span>Synchronisation Cloud (Supabase)</span>
+          </button>
         </div>
       </div>
 
@@ -666,7 +1095,7 @@ ${filteredUsers.length === 0 ? "Aucun profil de collaborateur ne correspond aux 
               <FileText size={16} />
             </span>
             <span className="text-xs font-black uppercase text-slate-800 tracking-wide">
-              Analyseur de Page Réseau : <span className="text-[#F26522]">{activeTab === 'LIST' ? "Clients & Sauvegardes" : activeTab === 'KPI_EXPLORER' ? "Suivi KPIs & Diagnostics" : activeTab === 'AUDIT_LOGS' ? "Journal d'Activité Global" : "Collaborateurs & Accès"}</span>
+              Analyseur de Page Réseau : <span className="text-[#F26522]">{activeTab === 'LIST' ? "Clients & Sauvegardes" : activeTab === 'KPI_EXPLORER' ? "Suivi KPIs & Diagnostics" : activeTab === 'AUDIT_LOGS' ? "Journal d'Activité Global" : activeTab === 'COLLABORATORS_GLOBAL' ? "Collaborateurs & Accès" : "Synchronisation Cloud (Supabase)"}</span>
             </span>
           </div>
           <p className="text-slate-500 text-[11px] leading-snug font-medium">
@@ -1321,9 +1750,9 @@ ${filteredUsers.length === 0 ? "Aucun profil de collaborateur ne correspond aux 
             </div>
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'COLLABORATORS_GLOBAL' ? (
         /* COLLABORATORS_GLOBAL VIEW */
-        <div className="space-y-6">
+        <div className="space-y-6 animate-fade-in">
           <div className="bg-white border border-gray-150 rounded-xl shadow-3xs overflow-hidden">
             {/* Header: Search and New Collaborator */}
             <div className="p-5 border-b border-gray-150 flex flex-col xl:flex-row gap-4 justify-between items-center bg-slate-50">
@@ -1576,6 +2005,243 @@ ${filteredUsers.length === 0 ? "Aucun profil de collaborateur ne correspond aux 
               Total collaborateurs répertoriés : {users.filter(u => u.role !== 'SUPERADMIN').length}
             </div>
           </div>
+        </div>
+      ) : (
+        /* SUPABASE_SYNC VIEW */
+        <div className="space-y-6 text-slate-800 animate-fade-in" id="supabase-sync-panel">
+          {/* Main Sync Controls Panel */}
+          <div className="bg-white border border-gray-150 rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-[#0B1F3F] to-[#1E4E8C] text-white p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Cloud className="text-emerald-400 animate-pulse" size={20} />
+                  <h3 className="font-extrabold text-sm uppercase tracking-wider">Console de Synchronisation Cloud Centrale</h3>
+                </div>
+                <p className="text-slate-300 text-xs font-medium">
+                  Sauvegardez ou restaurez en temps réel l'ensemble de la base de données d'un établissement client vers votre serveur Supabase.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSqlInstructions(!showSqlInstructions)}
+                  className="px-3.5 py-1.5 bg-white/10 hover:bg-white/15 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-white/20"
+                >
+                  <Database size={13} />
+                  <span>{showSqlInstructions ? "Masquer Instructions SQL" : "Afficher Instructions SQL"}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* API Credentials Config */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h4 className="font-extrabold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-gray-100 pb-2">
+                    <Sliders size={14} className="text-[#F26522]" />
+                    <span>1. Paramètres de Connexion API</span>
+                  </h4>
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wide">URL du projet Supabase</label>
+                      <input
+                        type="text"
+                        placeholder="https://your-project-id.supabase.co"
+                        value={supabaseUrl}
+                        onChange={(e) => setSupabaseUrl(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-gray-200 text-xs rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#1E4E8C] focus:bg-white transition"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wide">Clé d'API Publique Anon Key</label>
+                      <input
+                        type="password"
+                        placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                        value={supabaseKey}
+                        onChange={(e) => setSupabaseKey(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-gray-200 text-xs rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#1E4E8C] focus:bg-white transition font-mono"
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveKeys}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm animate-fade-in"
+                      >
+                        <Save size={13} />
+                        <span>Enregistrer les Clés</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleTestConnection}
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                      >
+                        <RefreshCw size={13} className={syncStatus === 'SYNCING' ? 'animate-spin' : ''} />
+                        <span>Tester la Connexion</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tenant Target and Sync Actions */}
+                <div className="space-y-4">
+                  <h4 className="font-extrabold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-gray-100 pb-2">
+                    <Building2 size={14} className="text-[#F26522]" />
+                    <span>2. Établissement et Actions</span>
+                  </h4>
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wide">Établissement Client à Synchroniser</label>
+                      <select
+                        value={selectedSyncTenantId}
+                        onChange={(e) => setSelectedSyncTenantId(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-gray-200 text-xs rounded-lg text-gray-800 focus:outline-none focus:border-[#1E4E8C] focus:bg-white transition font-bold"
+                      >
+                        <option value="">-- Choisir un site restaurant --</option>
+                        {tenants.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.id}) - {t.city || 'Yaoundé'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-xl space-y-1.5">
+                      <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider flex items-center gap-1">
+                        <AlertCircle size={12} />
+                        <span>Avertissement de Restauration (Pull) :</span>
+                      </p>
+                      <p className="text-[11px] text-amber-700 leading-relaxed font-medium">
+                        Le chargement des données depuis Supabase écrasera les informations locales de cet établissement sur votre navigateur actuel. La sauvegarde vers le Cloud (Push) est totalement sécurisée.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={handlePushToSupabase}
+                        disabled={syncStatus === 'SYNCING'}
+                        className="px-4 py-3 bg-[#1E4E8C] hover:bg-[#1E4E8C]/95 text-white disabled:bg-slate-300 rounded-xl text-xs font-black transition flex flex-col items-center justify-center gap-1.5 cursor-pointer shadow-sm border border-[#163a6a]"
+                      >
+                        <FileUp size={16} />
+                        <span>Sauvegarder vers le Cloud (Push)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handlePullFromSupabase}
+                        disabled={syncStatus === 'SYNCING'}
+                        className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-slate-300 rounded-xl text-xs font-black transition flex flex-col items-center justify-center gap-1.5 cursor-pointer shadow-sm border border-indigo-700"
+                      >
+                        <FileDown size={16} />
+                        <span>Restaurer depuis le Cloud (Pull)</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Retro Terminal Logging */}
+              <div className="space-y-2 pt-2">
+                <h4 className="font-extrabold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-1.5 font-sans">
+                  <Activity size={14} className="text-[#F26522]" />
+                  <span>3. Journal d'Audit de Synchronisation en Direct</span>
+                </h4>
+                <div className="bg-[#0c1017] text-[#39ff14] p-4 rounded-xl font-mono text-[10px] h-60 overflow-y-auto border border-slate-800 shadow-inner flex flex-col gap-1 leading-relaxed">
+                  <div className="text-slate-500 pb-1 border-b border-slate-900 flex justify-between items-center font-bold">
+                    <span>TERMINAL D'AUDIT CLOUD KISSINEFLOW v2.8</span>
+                    <span>STATUT: {syncStatus}</span>
+                  </div>
+                  {syncLog.length === 0 ? (
+                    <div className="text-slate-500 italic py-2">
+                      Prêt pour la synchronisation. Sélectionnez un établissement et lancez une action...
+                    </div>
+                  ) : (
+                    syncLog.map((log, index) => (
+                      <div key={index} className="whitespace-pre-wrap">
+                        {log}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* SQL instructions (Collapsible) */}
+              {showSqlInstructions && (
+                <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl space-y-4 animate-fade-in text-slate-800">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Database size={16} className="text-indigo-600" />
+                      <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wide">Initialisation SQL de la Base de Données</h4>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`create table if not exists public.kissineflow_sync (
+  id uuid default gen_random_uuid() primary key,
+  tenant_id text not null,
+  data_key text not null,
+  payload jsonb not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  unique (tenant_id, data_key)
+);
+
+alter table public.kissineflow_sync enable row level security;
+
+create policy "Allow public read access" on public.kissineflow_sync for select using (true);
+create policy "Allow public insert" on public.kissineflow_sync for insert with check (true);
+create policy "Allow public update" on public.kissineflow_sync for update using (true);
+create policy "Allow public delete" on public.kissineflow_sync for delete using (true);`);
+                        alert("Script SQL copié dans le presse-papiers !");
+                      }}
+                      className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-250 text-[10px] font-bold rounded flex items-center gap-1 cursor-pointer transition animate-fade-in"
+                    >
+                      <Copy size={11} />
+                      <span>Copier le Script SQL</span>
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed font-semibold">
+                    Exécutez ce script SQL dans l'éditeur de requêtes de votre console de projet Supabase (<strong>SQL Editor</strong>) pour créer la table de destination <code>kissineflow_sync</code> et ouvrir ses accès via Row Level Security (RLS) :
+                  </p>
+                  <pre className="bg-[#111827] text-[#f3f4f6] p-4 rounded-xl font-mono text-[9px] overflow-x-auto leading-relaxed max-h-60 shadow-md">
+{`-- 1. Créer la table de synchronisation KissineFlow
+create table if not exists public.kissineflow_sync (
+  id uuid default gen_random_uuid() primary key,
+  tenant_id text not null,
+  data_key text not null,
+  payload jsonb not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  unique (tenant_id, data_key)
+);
+
+-- 2. Configurer Row Level Security (RLS) pour autoriser l'accès anonyme via la clé publique anon
+alter table public.kissineflow_sync enable row level security;
+
+create policy "Allow public read access" on public.kissineflow_sync
+  for select using (true);
+
+create policy "Allow public insert" on public.kissineflow_sync
+  for insert with check (true);
+
+create policy "Allow public update" on public.kissineflow_sync
+  for update using (true);
+
+create policy "Allow public delete" on public.kissineflow_sync
+  for delete using (true);`}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING TOAST */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-50 p-4 bg-slate-900 text-white rounded-xl shadow-xl flex items-center gap-3 border border-slate-700 animate-slide-up">
+          <div className="p-1.5 bg-emerald-500 rounded-full text-white">
+            <Check size={14} />
+          </div>
+          <span className="text-xs font-bold leading-none">{toast.text}</span>
         </div>
       )}
 

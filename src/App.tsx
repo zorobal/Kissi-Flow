@@ -3178,6 +3178,44 @@ export default function App() {
                 onExportTenantData={handleExportTenantData}
                 logsAction={logsAction}
                 onUpdateUsers={setUsers}
+
+                // Cloud Sync Props
+                dishes={dishes}
+                recipes={recipes}
+                stockMovements={stockMovements}
+                physicalInventories={physicalInventories}
+                suppliers={suppliers}
+                purchaseOrders={purchaseOrders}
+                purchaseRequests={purchaseRequests}
+                cashMovements={cashMovements}
+                dailyClosures={dailyClosures}
+                paymentMethods={paymentMethods}
+                unitsOfMeasurement={unitsOfMeasurement}
+                businessYears={businessYears}
+                dishCategories={dishCategories}
+                ingredientCategories={ingredientCategories}
+                chargeTypes={chargeTypes}
+                activeTenantId={activeTenantId}
+                onUpdateTenants={setTenants}
+                onUpdateDishes={setDishes}
+                onUpdateIngredients={setIngredients}
+                onUpdateRecipes={setRecipes}
+                onUpdateOrders={setOrders}
+                onUpdateStockMovements={setStockMovements}
+                onUpdatePhysicalInventories={setPhysicalInventories}
+                onUpdateSuppliers={setSuppliers}
+                onUpdatePurchaseRequests={setPurchaseRequests}
+                onUpdatePurchaseOrders={setPurchaseOrders}
+                onUpdateCashMovements={setCashMovements}
+                onUpdateDailyClosures={setDailyClosures}
+                onUpdateAuditLogs={setAuditLogs}
+                onUpdateExpenses={setExpenses}
+                onChangePaymentMethods={setPaymentMethods}
+                onChangeUnitsOfMeasurement={setUnitsOfMeasurement}
+                onChangeBusinessYears={setBusinessYears}
+                onChangeDishCategories={setDishCategories}
+                onChangeIngredientCategories={setIngredientCategories}
+                onChangeChargeTypes={saveChargeTypes}
               />
             )}
           </div>

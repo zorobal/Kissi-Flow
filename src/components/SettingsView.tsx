@@ -25,8 +25,14 @@ import {
   CheckCircle,
   TrendingUp,
   MapPin,
-  Edit
+  Edit,
+  Cloud,
+  Database,
+  RefreshCw,
+  Play,
+  Copy
 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 import { Tenant, User, DishCategory, Dish, Ingredient, Recipe, RecipeLine, IngredientCategory, ChargeType, Expense } from '../types';
 
@@ -143,8 +149,311 @@ export default function SettingsView({
   expenses = [],
   onUpdateExpenses
 }: SettingsViewProps) {
-  // Tabs inside Paramètres: 'RESTAURANT' | 'USERS' | 'REFERENCES' | 'IMPORT_EXCEL' | 'JSON_BACKUP'
-  const [activeSubTab, setActiveSubTab] = useState<'RESTAURANT' | 'USERS' | 'REFERENCES' | 'IMPORT_EXCEL' | 'JSON_BACKUP'>('RESTAURANT');
+  // Tabs inside Paramètres: 'RESTAURANT' | 'USERS' | 'REFERENCES' | 'IMPORT_EXCEL' | 'JSON_BACKUP' | 'SUPABASE_SYNC'
+  const [activeSubTab, setActiveSubTab] = useState<'RESTAURANT' | 'USERS' | 'REFERENCES' | 'IMPORT_EXCEL' | 'JSON_BACKUP' | 'SUPABASE_SYNC'>('RESTAURANT');
+
+  // SUPABASE CLOUD SYNC STATES & HELPER FUNCTIONS
+  const [supabaseUrl, setSupabaseUrl] = useState<string>(() => localStorage.getItem('supabase-sync-url') || (import.meta as any).env?.VITE_SUPABASE_URL || '');
+  const [supabaseKey, setSupabaseKey] = useState<string>(() => localStorage.getItem('supabase-sync-key') || (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '');
+  const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'SUCCESS' | 'ERROR'>('IDLE');
+  const [syncLog, setSyncLog] = useState<string[]>([]);
+  const [showSqlInstructions, setShowSqlInstructions] = useState<boolean>(false);
+
+  const getSupabaseClient = (urlStr: string, keyStr: string) => {
+    if (!urlStr || !keyStr) return null;
+    try {
+      return createClient(urlStr.trim(), keyStr.trim(), {
+        auth: { persistSession: false }
+      });
+    } catch (err) {
+      console.error("Erreur lors de la création du client Supabase:", err);
+      return null;
+    }
+  };
+
+  const handleSaveKeys = () => {
+    localStorage.setItem('supabase-sync-url', supabaseUrl.trim());
+    localStorage.setItem('supabase-sync-key', supabaseKey.trim());
+    setToast({ text: "Configurations d'API Supabase enregistrées localement !", type: 'success' });
+    setSyncLog(prev => [...prev, "💾 Configurations d'API enregistrées dans le navigateur."]);
+  };
+
+  const handleTestConnection = async () => {
+    if (!supabaseUrl || !supabaseKey) {
+      setSyncLog(["❌ URL ou Clé d'API Supabase manquante."]);
+      setSyncStatus('ERROR');
+      return;
+    }
+
+    setSyncStatus('SYNCING');
+    setSyncLog(["📡 Test de connexion à Supabase...", `URL : ${supabaseUrl.trim()}`]);
+
+    const client = getSupabaseClient(supabaseUrl, supabaseKey);
+    if (!client) {
+      setSyncLog(prev => [...prev, "❌ Impossible d'initialiser le client Supabase."]);
+      setSyncStatus('ERROR');
+      return;
+    }
+
+    try {
+      const { data, error } = await client
+        .from('kissineflow_sync')
+        .select('id')
+        .limit(1);
+
+      if (error) {
+        if (error.code === 'PGRST116' || error.message.includes('not found') || error.message.includes('does not exist')) {
+          setSyncLog(prev => [
+            ...prev,
+            "⚠️ Connexion au serveur établie, mais la table 'kissineflow_sync' n'existe pas encore dans votre base de données Supabase.",
+            "👉 Suivez les instructions SQL ci-dessous pour créer la table dans votre tableau de bord Supabase, puis réessayez."
+          ]);
+          setSyncStatus('ERROR');
+        } else {
+          setSyncLog(prev => [...prev, `❌ Erreur d'accès à la table : ${error.message}`]);
+          setSyncStatus('ERROR');
+        }
+      } else {
+        setSyncLog(prev => [...prev, "✅ Connexion réussie ! La table 'kissineflow_sync' est opérationnelle sur votre instance Supabase."]);
+        setSyncStatus('SUCCESS');
+      }
+    } catch (err: any) {
+      setSyncLog(prev => [...prev, `❌ Erreur inattendue : ${err.message || err}`]);
+      setSyncStatus('ERROR');
+    }
+  };
+
+  const handlePushToSupabase = async () => {
+    if (!supabaseUrl || !supabaseKey) {
+      setSyncLog(prev => [...prev, "❌ URL ou Clé d'API Supabase manquante."]);
+      setSyncStatus('ERROR');
+      return;
+    }
+
+    setSyncStatus('SYNCING');
+    setSyncLog(["🔄 Initialisation de la sauvegarde (Push) vers Supabase...", `URL : ${supabaseUrl.trim()}`]);
+
+    const client = getSupabaseClient(supabaseUrl, supabaseKey);
+    if (!client) {
+      setSyncLog(prev => [...prev, "❌ Impossible d'initialiser le client Supabase."]);
+      setSyncStatus('ERROR');
+      return;
+    }
+
+    try {
+      const mode = (localStorage.getItem('erp-global-mode') as string || 'CLIENT').toLowerCase();
+      
+      const collections = [
+        { key: 'tenants', data: tenants },
+        { key: 'users', data: users },
+        { key: 'dishes', data: dishes },
+        { key: 'ingredients', data: ingredients },
+        { key: 'recipes', data: recipes },
+        { key: 'orders', data: orders },
+        { key: 'stock-movements', data: stockMovements },
+        { key: 'physical-inventories', data: physicalInventories },
+        { key: 'suppliers', data: suppliers },
+        { key: 'purchase-orders', data: purchaseOrders },
+        { key: 'purchase-requests', data: purchaseRequests },
+        { key: 'cash-movements', data: cashMovements },
+        { key: 'daily-closures', data: dailyClosures },
+        { key: 'audit-logs', data: auditLogs },
+        { key: 'non-food-items', data: localStorage.getItem(`erp-${mode}-non-food-items`) ? JSON.parse(localStorage.getItem(`erp-${mode}-non-food-items`)!) : [] },
+        { key: 'non-food-movements', data: localStorage.getItem(`erp-${mode}-non-food-movements`) ? JSON.parse(localStorage.getItem(`erp-${mode}-non-food-movements`)!) : [] },
+        { key: 'menus-du-jour', data: localStorage.getItem(`erp-${mode}-menus-du-jour`) ? JSON.parse(localStorage.getItem(`erp-${mode}-menus-du-jour`)!) : [] },
+        { key: 'detail-menus-jour', data: localStorage.getItem(`erp-${mode}-detail-menus-jour`) ? JSON.parse(localStorage.getItem(`erp-${mode}-detail-menus-jour`)!) : [] },
+        { key: 'formules-du-jour', data: localStorage.getItem(`erp-${mode}-formules-du-jour`) ? JSON.parse(localStorage.getItem(`erp-${mode}-formules-du-jour`)!) : [] },
+        { key: 'payment-methods', data: paymentMethods },
+        { key: 'units-measurement', data: unitsOfMeasurement },
+        { key: 'business-years', data: businessYears },
+        { key: 'dish-categories', data: dishCategories },
+        { key: 'ingredient-categories', data: ingredientCategories },
+        { key: 'charge-types', data: chargeTypes },
+        { key: 'expenses', data: expenses }
+      ];
+
+      setSyncLog(prev => [...prev, `📦 Compilation de ${collections.length} collections d'entités pour le mode ${mode.toUpperCase()}...`]);
+
+      let successCount = 0;
+      for (const col of collections) {
+        const tenantKey = `${mode}_${activeTenantId}`;
+        setSyncLog(prev => [...prev, `📤 Envoi de la collection '${col.key}' en cours...`]);
+        
+        const { error } = await client
+          .from('kissineflow_sync')
+          .upsert({
+            tenant_id: tenantKey,
+            data_key: col.key,
+            payload: col.data || [],
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'tenant_id,data_key'
+          });
+
+        if (error) {
+          setSyncLog(prev => [...prev, `⚠️ Échec d'envoi de '${col.key}' : ${error.message}`]);
+          console.error(`Error syncing ${col.key}:`, error);
+        } else {
+          successCount++;
+        }
+      }
+
+      setSyncLog(prev => [
+        ...prev,
+        `🎉 Sauvegarde réussie ! ${successCount}/${collections.length} collections de données ont été sérialisées et sécurisées dans votre base Supabase.`,
+        `📈 Horodatage : ${new Date().toLocaleTimeString()} - Données associées au site : ${activeTenantId}`
+      ]);
+      setSyncStatus('SUCCESS');
+      setToast({ text: "Données sauvegardées avec succès dans Supabase !", type: 'success' });
+      logsAction(`Sauvegarde Cloud vers Supabase (${successCount} collections) pour le site ${activeTenantId}`, 'SÉCURITÉ');
+    } catch (err: any) {
+      setSyncLog(prev => [...prev, `❌ Erreur inattendue : ${err.message || err}`]);
+      setSyncStatus('ERROR');
+    }
+  };
+
+  const handlePullFromSupabase = async () => {
+    if (!supabaseUrl || !supabaseKey) {
+      setSyncLog(prev => [...prev, "❌ URL ou Clé d'API Supabase manquante."]);
+      setSyncStatus('ERROR');
+      return;
+    }
+
+    setSyncStatus('SYNCING');
+    setSyncLog(["🔄 Initialisation du chargement (Pull) depuis Supabase...", `URL : ${supabaseUrl.trim()}`]);
+
+    const client = getSupabaseClient(supabaseUrl, supabaseKey);
+    if (!client) {
+      setSyncLog(prev => [...prev, "❌ Impossible d'initialiser le client Supabase."]);
+      setSyncStatus('ERROR');
+      return;
+    }
+
+    try {
+      const mode = (localStorage.getItem('erp-global-mode') as string || 'CLIENT').toLowerCase();
+      const tenantKey = `${mode}_${activeTenantId}`;
+      
+      setSyncLog(prev => [...prev, `📡 Récupération des enregistrements pour le site '${tenantKey}'...`]);
+      
+      const { data, error } = await client
+        .from('kissineflow_sync')
+        .select('*')
+        .eq('tenant_id', tenantKey);
+
+      if (error) {
+        setSyncLog(prev => [...prev, `❌ Échec de la récupération : ${error.message}`]);
+        setSyncStatus('ERROR');
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        setSyncLog(prev => [
+          ...prev,
+          `⚠️ Aucun enregistrement de synchronisation trouvé pour le site '${activeTenantId}' sous le mode ${mode.toUpperCase()}.`,
+          "👉 Effectuez d'abord une sauvegarde ('Push Cloud') depuis un appareil contenant vos données récentes."
+        ]);
+        setSyncStatus('SUCCESS');
+        return;
+      }
+
+      setSyncLog(prev => [...prev, `📥 ${data.length} collections de données reçues. Application locale...`]);
+
+      let restoredCount = 0;
+      for (const row of data) {
+        const { data_key, payload } = row;
+        if (!payload) continue;
+
+        let restored = false;
+        switch (data_key) {
+          case 'tenants':
+            if (onUpdateTenants) { onUpdateTenants(payload); restored = true; }
+            break;
+          case 'users':
+            if (onUpdateUsers) { onUpdateUsers(payload); restored = true; }
+            break;
+          case 'dishes':
+            if (onUpdateDishes) { onUpdateDishes(payload); restored = true; }
+            break;
+          case 'ingredients':
+            if (onUpdateIngredients) { onUpdateIngredients(payload); restored = true; }
+            break;
+          case 'recipes':
+            if (onUpdateRecipes) { onUpdateRecipes(payload); restored = true; }
+            break;
+          case 'orders':
+            if (onUpdateOrders) { onUpdateOrders(payload); restored = true; }
+            break;
+          case 'stock-movements':
+            if (onUpdateStockMovements) { onUpdateStockMovements(payload); restored = true; }
+            break;
+          case 'physical-inventories':
+            if (onUpdatePhysicalInventories) { onUpdatePhysicalInventories(payload); restored = true; }
+            break;
+          case 'suppliers':
+            if (onUpdateSuppliers) { onUpdateSuppliers(payload); restored = true; }
+            break;
+          case 'purchase-orders':
+            if (onUpdatePurchaseOrders) { onUpdatePurchaseOrders(payload); restored = true; }
+            break;
+          case 'purchase-requests':
+            if (onUpdatePurchaseRequests) { onUpdatePurchaseRequests(payload); restored = true; }
+            break;
+          case 'cash-movements':
+            if (onUpdateCashMovements) { onUpdateCashMovements(payload); restored = true; }
+            break;
+          case 'daily-closures':
+            if (onUpdateDailyClosures) { onUpdateDailyClosures(payload); restored = true; }
+            break;
+          case 'audit-logs':
+            if (onUpdateAuditLogs) { onUpdateAuditLogs(payload); restored = true; }
+            break;
+          case 'payment-methods':
+            if (onChangePaymentMethods) { onChangePaymentMethods(payload); restored = true; }
+            break;
+          case 'units-measurement':
+            if (onChangeUnitsOfMeasurement) { onChangeUnitsOfMeasurement(payload); restored = true; }
+            break;
+          case 'business-years':
+            if (onChangeBusinessYears) { onChangeBusinessYears(payload); restored = true; }
+            break;
+          case 'dish-categories':
+            if (onChangeDishCategories) { onChangeDishCategories(payload); restored = true; }
+            break;
+          case 'ingredient-categories':
+            if (onChangeIngredientCategories) { onChangeIngredientCategories(payload); restored = true; }
+            break;
+          case 'charge-types':
+            if (onChangeChargeTypes) { onChangeChargeTypes(payload); restored = true; }
+            break;
+          case 'expenses':
+            if (onUpdateExpenses) { onUpdateExpenses(payload); restored = true; }
+            break;
+          default:
+            localStorage.setItem(`erp-${mode}-${data_key}`, JSON.stringify(payload));
+            restored = true;
+            break;
+        }
+
+        if (restored) {
+          // Double safeguard to make sure localStorage is always in sync immediately
+          localStorage.setItem(`erp-${mode}-${data_key}`, JSON.stringify(payload));
+          restoredCount++;
+        }
+      }
+
+      setSyncLog(prev => [
+        ...prev,
+        `🎉 Restauration locale terminée ! ${restoredCount} collections de données appliquées localement avec succès.`,
+        "💡 Astuce : Si certains éléments visuels ne se rechargent pas automatiquement, actualisez simplement la page du navigateur."
+      ]);
+      setSyncStatus('SUCCESS');
+      setToast({ text: "Données synchronisées depuis Supabase avec succès !", type: 'success' });
+      logsAction(`Chargement Cloud depuis Supabase pour le site ${activeTenantId}`, 'SÉCURITÉ');
+    } catch (err: any) {
+      setSyncLog(prev => [...prev, `❌ Erreur inattendue : ${err.message || err}`]);
+      setSyncStatus('ERROR');
+    }
+  };
 
   // OPERATIONAL MULTI-SITE STATES
   const [showSiteModal, setShowSiteModal] = useState(false);
@@ -1272,8 +1581,21 @@ export default function SettingsView({
               : 'border-transparent text-gray-500 hover:text-gray-900'
           }`}
         >
-          <Download className="h-4 w-4 animate-bounce" />
-          <span className="font-extrabold uppercase text-[#1E4E8C] text-[10px] tracking-wider">Sauvegarde & Portabilité (JSON)</span>
+          <Download className="h-4 w-4" />
+          <span className="font-extrabold uppercase text-gray-600 text-[10px] tracking-wider">Sauvegarde & Portabilité (JSON)</span>
+        </button>
+
+        <button
+          id="tab-settings-supabase"
+          onClick={() => { setActiveSubTab('SUPABASE_SYNC'); setSyncLog([]); }}
+          className={`px-5 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+            activeSubTab === 'SUPABASE_SYNC'
+              ? 'border-orange-600 text-orange-600 bg-white font-extrabold shadow-3xs'
+              : 'border-transparent text-gray-500 hover:text-gray-900'
+          }`}
+        >
+          <Cloud className="h-4 w-4 text-orange-500 animate-pulse" />
+          <span className="font-extrabold uppercase text-orange-600 text-[10px] tracking-wider">Synchronisation Cloud (Supabase)</span>
         </button>
       </div>
 
@@ -2385,6 +2707,273 @@ export default function SettingsView({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 6: SUPABASE CLOUD SYNC */}
+      {activeSubTab === 'SUPABASE_SYNC' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-fade-in">
+            <div className="space-y-1 font-sans">
+              <h3 className="text-sm font-extrabold text-orange-800 flex items-center gap-2">
+                <Cloud className="h-5 w-5 text-orange-600 animate-pulse" />
+                <span>Synchronisation Cloud Intégrale avec Supabase (Option A)</span>
+              </h3>
+              <p className="text-xs text-gray-650 leading-relaxed max-w-3xl font-semibold">
+                Sauvegardez et restaurez vos bases de données KissineFlow en ligne de manière sécurisée. Cette architecture décentralisée vous permet de synchroniser vos ventes, fiches, stocks et dépenses en temps réel entre votre ordinateur principal, vos tablettes de service et vos smartphones de livraison, tout en hébergeant l'application en ligne sur Vercel !
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
+            {/* Col 1: Configurations */}
+            <div className="lg:col-span-1 space-y-6">
+              <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-2xs space-y-4">
+                <h3 className="text-xs font-black text-gray-900 border-b pb-2 uppercase tracking-wider flex items-center gap-1.5">
+                  <Settings className="h-4 w-4 text-gray-500" />
+                  <span>Configurations d'API Supabase</span>
+                </h3>
+
+                <div className="space-y-4 text-xs font-sans">
+                  <div className="space-y-1">
+                    <label className="text-gray-600 block font-bold">URL du projet Supabase *</label>
+                    <input
+                      type="text"
+                      placeholder="https://your-project-id.supabase.co"
+                      value={supabaseUrl}
+                      onChange={(e) => setSupabaseUrl(e.target.value)}
+                      className="w-full p-2 border bg-white rounded font-mono text-gray-950 focus:ring-1 focus:ring-orange-500"
+                    />
+                    <p className="text-[10px] text-gray-400">Exemple: https://abcedfghijkl.supabase.co</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-gray-600 block font-bold">Clé d'API publique anon (Key) *</label>
+                    <input
+                      type="password"
+                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      value={supabaseKey}
+                      onChange={(e) => setSupabaseKey(e.target.value)}
+                      className="w-full p-2 border bg-white rounded font-mono text-gray-950 focus:ring-1 focus:ring-orange-500"
+                    />
+                    <p className="text-[10px] text-gray-400">Clé anonyme (anon / public) trouvée dans vos paramètres API Supabase.</p>
+                  </div>
+
+                  <div className="pt-2 flex flex-col gap-2">
+                    <button
+                      onClick={handleSaveKeys}
+                      className="w-full py-2 bg-gray-900 hover:bg-gray-800 text-white font-bold rounded-lg text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition shadow-3xs"
+                    >
+                      <Save className="h-3.5 w-3.5" />
+                      <span>Enregistrer localement (Navigateur)</span>
+                    </button>
+
+                    <button
+                      onClick={handleTestConnection}
+                      disabled={syncStatus === 'SYNCING'}
+                      className="w-full py-2 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-lg text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition shadow-3xs disabled:opacity-50"
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${syncStatus === 'SYNCING' ? 'animate-spin' : ''}`} />
+                      <span>Tester la Connexion au Cloud</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status information */}
+              <div className="bg-slate-50 p-5 border border-gray-200 rounded-xl space-y-3 font-sans">
+                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">État opérationnel</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Site de vente actif :</span>
+                    <strong className="font-extrabold text-[#1E4E8C] font-mono">{activeTenantId}</strong>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Mode de connexion :</span>
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-black rounded-md uppercase tracking-wider">
+                      {localStorage.getItem('erp-global-mode') || 'CLIENT'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Déploiement Vercel :</span>
+                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded-md uppercase tracking-wider">
+                      {(import.meta as any).env?.VITE_SUPABASE_URL ? "Automatique" : "Configuration Libre"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Col 2: Sync Core Panel & Terminal Logs */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-2xs space-y-4">
+                <h3 className="text-xs font-black text-gray-900 border-b pb-2 uppercase tracking-wider flex items-center gap-1.5">
+                  <Database className="h-4 w-4 text-orange-600" />
+                  <span>Actions de Synchronisation</span>
+                </h3>
+
+                <p className="text-xs text-gray-500 leading-relaxed font-sans">
+                  Choisissez l'action souhaitée. Le bouton <strong>Push Cloud</strong> sauvegarde vos données locales vers Supabase, tandis que le bouton <strong>Pull Cloud</strong> recharge les données stockées dans Supabase vers votre navigateur.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="border border-orange-100 rounded-xl p-4 space-y-3 bg-orange-50/10">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 bg-orange-100 text-orange-600 rounded-lg">
+                        <Cloud className="h-4 w-4 text-orange-600" />
+                      </span>
+                      <h4 className="text-xs font-bold text-gray-900">Push Cloud (Sauvegarder)</h4>
+                    </div>
+                    <p className="text-[11px] text-gray-500 leading-relaxed">
+                      Envoie et sécurise l'intégralité de vos collections (dishes, orders, stocks, financiers) du site actif vers votre base de données Supabase.
+                    </p>
+                    <button
+                      onClick={handlePushToSupabase}
+                      disabled={syncStatus === 'SYNCING'}
+                      className="w-full py-2 bg-orange-600 hover:bg-orange-500 text-white font-extrabold text-xs rounded-lg cursor-pointer transition select-none flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95 shadow-xs"
+                    >
+                      <Cloud className="h-4 w-4 shrink-0" />
+                      <span>Push Cloud vers Supabase</span>
+                    </button>
+                  </div>
+
+                  <div className="border border-blue-100 rounded-xl p-4 space-y-3 bg-blue-50/10">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 bg-blue-100 text-[#1E4E8C] rounded-lg">
+                        <Database className="h-4 w-4 text-blue-600" />
+                      </span>
+                      <h4 className="text-xs font-bold text-gray-900">Pull Cloud (Récupérer)</h4>
+                    </div>
+                    <p className="text-[11px] text-gray-500 leading-relaxed">
+                      Récupère l'état complet sauvegardé dans Supabase pour écraser et mettre à jour vos données locales dans ce navigateur.
+                    </p>
+                    <button
+                      onClick={handlePullFromSupabase}
+                      disabled={syncStatus === 'SYNCING'}
+                      className="w-full py-2 bg-gray-900 hover:bg-gray-800 text-white font-extrabold text-xs rounded-lg cursor-pointer transition select-none flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95 shadow-xs"
+                    >
+                      <Download className="h-4 w-4 shrink-0" />
+                      <span>Pull Cloud depuis Supabase</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Console logs */}
+                <div className="space-y-2 pt-2 font-sans">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black text-gray-400 uppercase tracking-wider">Console de logs d'exécution</span>
+                    {syncStatus === 'SYNCING' && (
+                      <span className="text-[10px] font-extrabold text-orange-600 animate-pulse flex items-center gap-1">
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                        Synchronisation en cours...
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="bg-gray-950 text-emerald-400 p-4 rounded-xl font-mono text-[11px] h-44 overflow-y-auto space-y-1 border border-gray-900 shadow-inner scrollbar-thin">
+                    {syncLog.length === 0 ? (
+                      <p className="text-gray-500 text-center pt-10">Console inactive. Lancez une action pour afficher les logs de communication.</p>
+                    ) : (
+                      syncLog.map((log, idx) => (
+                        <div key={idx} className="leading-relaxed break-all">
+                          {log}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SQL Setup Instructions */}
+          <div className="bg-white border border-gray-200 rounded-xl shadow-2xs overflow-hidden font-sans">
+            <button
+              onClick={() => setShowSqlInstructions(!showSqlInstructions)}
+              className="w-full px-6 py-4 bg-slate-50 border-b border-gray-150 flex items-center justify-between text-left cursor-pointer hover:bg-slate-100/70 transition"
+            >
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-black text-gray-900 flex items-center gap-2">
+                  <Database className="h-4 w-4 text-orange-600" />
+                  <span>Étape indispensable : Script SQL d'initialisation de votre Supabase</span>
+                </h4>
+                <p className="text-[11px] text-gray-500">Création automatique de la table de synchronisation.</p>
+              </div>
+              <span className="text-xs font-bold text-orange-600">{showSqlInstructions ? "Masquer le script SQL" : "Afficher le script SQL"}</span>
+            </button>
+
+            {showSqlInstructions && (
+              <div className="p-6 space-y-4 text-xs font-sans">
+                <div className="space-y-2">
+                  <p className="text-gray-600 leading-relaxed font-semibold">
+                    Pour que KissineFlow puisse s'interfacer avec votre base Supabase, vous devez créer une unique table nommée <strong className="font-bold text-gray-900">kissineflow_sync</strong> dans votre projet Supabase.
+                  </p>
+                  <ol className="list-decimal list-inside space-y-1.5 pl-2 text-gray-500 font-semibold">
+                    <li>Rendez-vous sur votre <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="text-orange-600 font-extrabold underline hover:text-orange-500">Tableau de Bord Supabase</a></li>
+                    <li>Sélectionnez votre projet, puis ouvrez l'onglet <strong className="text-gray-800">SQL Editor</strong> dans le volet de gauche.</li>
+                    <li>Cliquez sur <strong className="text-gray-800">New Query</strong>, collez le script ci-dessous, puis cliquez sur le bouton <strong className="text-emerald-700 font-black">Run</strong>.</li>
+                  </ol>
+                </div>
+
+                <div className="relative">
+                  <pre className="bg-gray-900 text-gray-100 p-4 rounded-xl font-mono text-[10px] overflow-x-auto border border-gray-850 shadow-md">
+{`-- 1. Créer la table de synchronisation KissineFlow
+create table if not exists public.kissineflow_sync (
+  id uuid default gen_random_uuid() primary key,
+  tenant_id text not null,
+  data_key text not null,
+  payload jsonb not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  unique (tenant_id, data_key)
+);
+
+-- 2. Configurer Row Level Security (RLS) pour autoriser l'accès anonyme via la clé publique anon
+alter table public.kissineflow_sync enable row level security;
+
+create policy "Allow public read access" on public.kissineflow_sync
+  for select using (true);
+
+create policy "Allow public insert" on public.kissineflow_sync
+  for insert with check (true);
+
+create policy "Allow public update" on public.kissineflow_sync
+  for update using (true);
+
+create policy "Allow public delete" on public.kissineflow_sync
+  for delete using (true);`}
+                  </pre>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`create table if not exists public.kissineflow_sync (
+  id uuid default gen_random_uuid() primary key,
+  tenant_id text not null,
+  data_key text not null,
+  payload jsonb not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  unique (tenant_id, data_key)
+);
+
+alter table public.kissineflow_sync enable row level security;
+
+create policy "Allow public read access" on public.kissineflow_sync for select using (true);
+create policy "Allow public insert" on public.kissineflow_sync for insert with check (true);
+create policy "Allow public update" on public.kissineflow_sync for update using (true);
+create policy "Allow public delete" on public.kissineflow_sync for delete using (true);`);
+                      setToast({ text: "Script SQL d'initialisation copié !", type: 'success' });
+                    }}
+                    className="absolute top-3 right-3 px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded text-[10px] font-bold cursor-pointer transition flex items-center gap-1"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    <span>Copier le script SQL</span>
+                  </button>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl text-amber-900 leading-relaxed font-semibold">
+                  💡 <strong>Déploiement sur Vercel :</strong> Une fois la table créée et testée localement, configurez simplement les variables d'environnement <strong className="font-mono text-xs">VITE_SUPABASE_URL</strong> et <strong className="font-mono text-xs">VITE_SUPABASE_ANON_KEY</strong> dans l'interface de votre projet Vercel. KissineFlow s'y connectera instantanément et de façon entièrement transparente !
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
