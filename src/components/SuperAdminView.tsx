@@ -34,7 +34,9 @@ import {
   Cloud,
   Database,
   Save,
-  Copy
+  Copy,
+  Percent,
+  ShoppingBag
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { Tenant, User, Order, Ingredient, Expense, UserPermission, AuditLog } from '../types';
@@ -1333,6 +1335,14 @@ La console de synchronisation cloud permet au SuperAdmin de KissineFlow de sauve
               const clientVat = clientOrders.reduce((sum, o) => sum + (o.total * 0.1925), 0);
               const clientExpensesTotal = expenses.filter(e => clientSiteIds.includes(e.tenantId)).reduce((sum, e) => sum + e.amountTtc, 0);
               const clientNetProfit = clientRevenue - clientExpensesTotal;
+
+              // Advanced indicators calculation
+              const clientOrdersCount = clientOrders.length;
+              const averageOrderValue = clientOrdersCount > 0 ? Math.round(clientRevenue / clientOrdersCount) : 0;
+              const totalCovers = clientOrders.reduce((sum, o) => sum + (o.covers || 0), 0);
+              const averageCoverValue = totalCovers > 0 ? Math.round(clientRevenue / totalCovers) : 0;
+              const netMarginPercent = clientRevenue > 0 ? (clientNetProfit / clientRevenue) * 100 : 0;
+              const expenseToRevenueRatio = clientRevenue > 0 ? (clientExpensesTotal / clientRevenue) * 100 : 0;
               
               return (
                 <div className="space-y-6">
@@ -1340,36 +1350,80 @@ La console de synchronisation cloud permet au SuperAdmin de KissineFlow de sauve
                   <div>
                     <h4 className="text-xs font-extrabold uppercase text-gray-400 tracking-wider mb-2.5 flex items-center gap-1.5">
                       <TrendingUp size={14} className="text-blue-600" />
-                      1. Indicateurs Globaux Consolidés (Tous les sites rattachés)
+                      1. Indicateurs Globaux Consolidés & Analyse de Performance (Tous les sites rattachés)
                     </h4>
                     
-                    <div className="border border-slate-150 rounded-xl p-5 bg-gradient-to-r from-slate-50/70 to-slate-50/30 grid grid-cols-1 md:grid-cols-4 gap-6">
-                      <div className="space-y-1">
-                        <span className="text-[9px] font-black uppercase text-gray-450 block">CHIFRE D'AFFAIRES GLOBAL</span>
-                        <p className="text-xl font-bold font-mono text-indigo-950">{clientRevenue.toLocaleString()} FCFA</p>
-                        <span className="text-[10px] text-gray-500 font-medium">Bons de caisse comptabilisés</span>
+                    {/* Sub-section: Cash Flows */}
+                    <div className="mb-5">
+                      <div className="text-[9px] font-black uppercase text-indigo-600 mb-2 tracking-wider flex items-center gap-1 bg-indigo-50/50 py-1 px-2.5 rounded-md inline-block">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                        <span>Flux Financiers et Trésorerie Consolidés</span>
                       </div>
-                      
-                      <div className="space-y-1">
-                        <span className="text-[9px] font-black uppercase text-gray-450 block">TVA COLLECTÉE CUMULÉE (19.25%)</span>
-                        <p className="text-xl font-bold font-mono text-indigo-700">{Math.round(clientVat).toLocaleString()} FCFA</p>
-                        <span className="text-[10px] text-gray-500 font-medium">Reversable théorique estimé</span>
-                      </div>
+                      <div className="border border-slate-150 rounded-xl p-5 bg-gradient-to-r from-slate-50/70 to-slate-50/30 grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div className="space-y-1">
+                          <span className="text-[9px] font-black uppercase text-gray-450 block">CHIFFRE D'AFFAIRES GLOBAL</span>
+                          <p className="text-xl font-bold font-mono text-indigo-950">{clientRevenue.toLocaleString()} FCFA</p>
+                          <span className="text-[10px] text-gray-500 font-medium">{clientOrdersCount} Bons de caisse clôturés</span>
+                        </div>
+                        
+                        <div className="space-y-1">
+                          <span className="text-[9px] font-black uppercase text-gray-450 block">TVA COLLECTÉE CUMULÉE (19.25%)</span>
+                          <p className="text-xl font-bold font-mono text-indigo-700">{Math.round(clientVat).toLocaleString()} FCFA</p>
+                          <span className="text-[10px] text-gray-500 font-medium">Reversable théorique estimé</span>
+                        </div>
 
-                      <div className="space-y-1">
-                        <span className="text-[9px] font-black uppercase text-gray-450 block">DÉPENSES & CHARGES TOTALES</span>
-                        <p className="text-xl font-bold font-mono text-rose-600">{clientExpensesTotal.toLocaleString()} FCFA</p>
-                        <span className="text-[10px] text-gray-500 font-medium">Exploitation et approvisionnements</span>
-                      </div>
+                        <div className="space-y-1">
+                          <span className="text-[9px] font-black uppercase text-gray-450 block">DÉPENSES & CHARGES TOTALES</span>
+                          <p className="text-xl font-bold font-mono text-rose-600">{clientExpensesTotal.toLocaleString()} FCFA</p>
+                          <span className="text-[10px] text-gray-500 font-medium font-semibold text-rose-700 bg-rose-50 border border-rose-100 rounded px-1 mt-0.5 inline-block">Exploitation et approvisionnements</span>
+                        </div>
 
-                      <div className="space-y-1">
-                        <span className="text-[9px] font-black uppercase text-gray-450 block font-bold">RÉSULTAT NET CUMULÉ</span>
-                        <p className={`text-xl font-bold font-mono ${clientNetProfit >= 0 ? 'text-emerald-600' : 'text-red-650'}`}>
-                          {clientNetProfit.toLocaleString()} FCFA
-                        </p>
-                        <span className={`text-[10px] font-semibold ${clientNetProfit >= 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-100' : 'text-red-750 bg-red-50 border-red-100'} py-0.5 px-1.5 rounded border inline-block mt-0.5`}>
-                          {clientNetProfit >= 0 ? 'Diagnostic Rentable' : 'Résultat Général Déficitaire'}
-                        </span>
+                        <div className="space-y-1">
+                          <span className="text-[9px] font-black uppercase text-gray-450 block font-bold">RÉSULTAT NET CUMULÉ</span>
+                          <p className={`text-xl font-bold font-mono ${clientNetProfit >= 0 ? 'text-emerald-600' : 'text-red-650'}`}>
+                            {clientNetProfit.toLocaleString()} FCFA
+                          </p>
+                          <span className={`text-[10px] font-semibold ${clientNetProfit >= 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-100' : 'text-red-750 bg-red-50 border-red-100'} py-0.5 px-1.5 rounded border inline-block mt-0.5`}>
+                            {clientNetProfit >= 0 ? 'Diagnostic Rentable' : 'Résultat Général Déficitaire'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Sub-section: Advanced performance indicators */}
+                    <div>
+                      <div className="text-[9px] font-black uppercase text-emerald-700 mb-2 tracking-wider flex items-center gap-1 bg-emerald-50/50 py-1 px-2.5 rounded-md inline-block">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>Performance Opérationnelle & Rentabilité Consolidées</span>
+                      </div>
+                      <div className="border border-slate-150 rounded-xl p-5 bg-gradient-to-r from-slate-50/70 to-slate-50/30 grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div className="space-y-1">
+                          <span className="text-[9px] font-black uppercase text-gray-450 block">PANIER MOYEN (AOV)</span>
+                          <p className="text-xl font-bold font-mono text-[#F26522]">{averageOrderValue.toLocaleString()} FCFA</p>
+                          <span className="text-[10px] text-gray-500 font-medium">Montant moyen par ticket</span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-[9px] font-black uppercase text-gray-450 block">MARGE BÉNÉFICIAIRE NETTE</span>
+                          <p className={`text-xl font-bold font-mono ${netMarginPercent >= 0 ? 'text-emerald-600' : 'text-red-650'}`}>
+                            {netMarginPercent.toFixed(2)} %
+                          </p>
+                          <span className="text-[10px] text-gray-500 font-medium">Rentabilité nette du CA global</span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-[9px] font-black uppercase text-gray-450 block">FRÉQUENTATION (COUVERTS)</span>
+                          <p className="text-xl font-bold font-mono text-indigo-950">
+                            {totalCovers.toLocaleString()} <span className="text-xs font-normal text-slate-500">couv.</span>
+                          </p>
+                          <span className="text-[10px] text-gray-500 font-medium">Ticket / couvert : {averageCoverValue.toLocaleString()} FCFA</span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-[9px] font-black uppercase text-gray-450 block">EFFICACITÉ DES CHARGES (EXPENSE RATIO)</span>
+                          <p className="text-xl font-bold font-mono text-blue-950">{expenseToRevenueRatio.toFixed(2)} %</p>
+                          <span className="text-[10px] text-gray-500 font-medium">Part du CA consommée par les charges</span>
+                        </div>
                       </div>
                     </div>
                   </div>
