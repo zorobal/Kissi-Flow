@@ -93,6 +93,27 @@ Activité commerciale sur-mesure de banquet/mariage pour laquelle le client prop
 
 ---
 
+### E. Nouveau Module : Indicateurs Avancés & d'Analyse Financière Consolidée (SuperAdmin)
+Le Cockpit SuperAdmin propose une série de métriques financières consolides et de ratios de performance pour analyser de manière transverse l'activité de tous les sites d'une franchise ou d'un groupe.
+
+* **Panier Moyen Consolidé (Average Order Value - AOV) :**
+  $$\text{AOV} = \frac{\text{Chiffre d'Affaires Global}}{\text{Nombre Total de Bons de Caisse}}$$
+  *Mesure le montant moyen dépensé par transaction sur l'ensemble des sites.*
+
+* **Marge Bénéficiaire Nette Consolidée :**
+  $$\text{Marge Nette} (\%) = \left(\frac{\text{Résultat Net Cumulé}}{\text{Chiffre d'Affaires Global}}\right) \times 100$$
+  *Rend compte de l'efficacité de rentabilité finale nette une fois l'ensemble des charges d'exploitation déduites.*
+
+* **Ticket Moyen par Couvert (Fréquentation) :**
+  $$\text{Ticket Moyen par Couvert} = \frac{\text{Chiffre d'Affaires Global}}{\text{Total Couverts (Fréquentation Cumulée)}}$$
+  *Définit la dépense moyenne d'un client attablé sur l'ensemble du réseau.*
+
+* **Efficacité des Charges d'Exploitation (Expense Ratio) :**
+  $$\text{Expense Ratio} (\%) = \left(\frac{\text{Dépenses \& Charges Totales}}{\text{Chiffre d'Affaires Global}}\right) \times 100$$
+  *Indique la part du chiffre d'affaires absorbée par le fonctionnement et l'approvisionnement.*
+
+---
+
 ## 4. Interactions et Flux de Données Entre Modules
 
 Les données voyagent en temps réel pour assurer une cohérence absolue :
@@ -115,4 +136,5 @@ Les données voyagent en temps réel pour assurer une cohérence absolue :
 3. **Caisse Tactile (Vente POS) :** Exporte les transactions de ventes vers le **Tableau de Bord** et alimente le module **Bilan** sous forme de CA. Elle permet également aux **Objectifs Financiers** de comparer instantanément la cible de vente fixée à une date donnée par rapport aux encaissements réels constatés à la seconde près.
 4. **Paramètres Système :** La définition de la TVA s'applique globalement à l’application, mettant à jour la conversion de l'assiette du Chiffre d'Affaires de tous les calculs analytiques.
 5. **Gestion des Pertes & Actifs Conjoints :** La validation d'une perte d'ingrédient alimente directement le badge d'alerte sous la carte bénèfice net du **Tableau de Bord** (mettant en exergue le préjudice de gaspillage) et s'impute comme charge directe brute déductible dans le **Bilan SIG**. Parallèlement, la valorisation globale intègre de manière synchrone l'actif circulant alimentaire et les consommables hors-alimentation (matériels, emballages, hygiène).
+6. **Portabilité Supabase Cloud (SuperAdmin) :** Les données locales stockées en localStorage par l'ERP (tenants, users, orders, dishes, ingredients, stocks, receipts, expenses, etc.) pour un site ou mode donné sont structurées sous forme de payload JSON et exportées de manière sécurisée (`Push`) vers la table `kissineflow_sync` de Supabase. À l'inverse, l'opération de `Pull` rapatrie ces données et écrase l'état local pour rafraîchir instantanément les KPIs multi-sites consolidés du SuperAdmin.
 

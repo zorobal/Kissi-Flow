@@ -1585,18 +1585,20 @@ export default function SettingsView({
           <span className="font-extrabold uppercase text-gray-600 text-[10px] tracking-wider">Sauvegarde & Portabilité (JSON)</span>
         </button>
 
-        <button
-          id="tab-settings-supabase"
-          onClick={() => { setActiveSubTab('SUPABASE_SYNC'); setSyncLog([]); }}
-          className={`px-5 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            activeSubTab === 'SUPABASE_SYNC'
-              ? 'border-orange-600 text-orange-600 bg-white font-extrabold shadow-3xs'
-              : 'border-transparent text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <Cloud className="h-4 w-4 text-orange-500 animate-pulse" />
-          <span className="font-extrabold uppercase text-orange-600 text-[10px] tracking-wider">Synchronisation Cloud (Supabase)</span>
-        </button>
+        {activeUser?.role === 'SUPERADMIN' && (
+          <button
+            id="tab-settings-supabase"
+            onClick={() => { setActiveSubTab('SUPABASE_SYNC'); setSyncLog([]); }}
+            className={`px-5 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+              activeSubTab === 'SUPABASE_SYNC'
+                ? 'border-orange-600 text-orange-600 bg-white font-extrabold shadow-3xs'
+                : 'border-transparent text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            <Cloud className="h-4 w-4 text-orange-500 animate-pulse" />
+            <span className="font-extrabold uppercase text-orange-600 text-[10px] tracking-wider">Synchronisation Cloud (Supabase)</span>
+          </button>
+        )}
       </div>
 
       {/* CONTENT FOR SUB-TABS */}
@@ -2712,7 +2714,7 @@ export default function SettingsView({
       )}
 
       {/* SUB-TAB 6: SUPABASE CLOUD SYNC */}
-      {activeSubTab === 'SUPABASE_SYNC' && (
+      {activeSubTab === 'SUPABASE_SYNC' && activeUser?.role === 'SUPERADMIN' && (
         <div className="space-y-6">
           <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-fade-in">
             <div className="space-y-1 font-sans">

@@ -17,7 +17,8 @@ https://kissineflow-485011842329.europe-west3.run.app/
 *   **🏷️ Catalogue & Fiches Techniques (BOM)** : Configuration de la nomenclature technique des recettes et dissociation fine entre le coût théorique matière et la redéfinition du coût de revient gérant ("Resto"). Importateur de masse Excel intégré.
 *   **💴 Comptabilité, Clôtures de Caisse & Finance** : Clôtures journalières certifiées (Z-Out), mouvements de cash divers en cours de service, et imputations des factures de charges d'exploitation fixes ou variables (Salaires, Loyers, Énergie) avec répartition fiscale.
 *   **📊 Bilan Analytique & Soldes Intermédiaires de Gestion (SIG)** : Calcul automatisé du compte de résultat d'exploitation complet (Consolidation Produits vs Charges, Food Cost, Pertes de Cuisine & Consommables isolés, Résultat Net comparatif BOM/Resto).
-*   **🔑 Administration des Rôles** : Droits restrictifs pour sécuriser l'organisation par profil collaborateur (Admin, Manager, Caissier, Économe/Stocks, Comptable).
+*   **🔑 Administration des Rôles** : Droits restrictifs pour sécuriser l'organisation par profil collaborateur (SuperAdmin, Admin, Manager, Caissier, Économe/Stocks, Comptable).
+*   **👑 Cockpit SuperAdmin & Synchronisation Cloud (Supabase)** : Module de supervision multi-site hautement sécurisé pour les franchises et groupes. Permet de consolider l'ensemble des KPIs (CA consolidé, TVA cumulée, charges, résultat net, AOV, marge nette %, couverts, expense ratio). Il intègre un outil de détection automatique de sites actifs sur le cloud Supabase, d'import/export de l'ensemble des 19 collections locales, d'une option de saisie manuelle de l'identifiant pour la portabilité absolue, et d'un journal de logs rétro-terminal en temps réel. L'accès aux configurations de synchronisation cloud dans les paramètres est restreint de manière sécurisée au profil `SUPERADMIN`.
 
 ---
 
@@ -63,5 +64,6 @@ Le déstockage des ingrédients en cuisine est calculé en temps réel lors du p
 ## 📚 Ressources Additionnelles & Documentation Interne
 
 Pour approfondir les mécanismes intégrés ou mettre en place un plan de formation rigoureux de vos collaborateurs :
-*   📘 **[MANUEL_D_UTILISATION.md](./MANUEL_D_UTILISATION.md)** : Étude pas-à-pas de chaque module opérationnel et des guides de formation détaillés par rôle utilisateur (Chef de Cuisine, Caissier, Comptable, Gérant Audit).
-*   🏛️ **[SYNTHESE_ARCHITECTURE_FORMATION.md](./SYNTHESE_ARCHITECTURE_FORMATION.md)** : Synthèse de l'architecture technique des composants React, de l'isolation multi-tenant, et du fonctionnement des flux transverses d'information.
+*   📘 **[MANUEL_D_UTILISATION.md](./MANUEL_D_UTILISATION.md)** : Étude pas-à-pas de chaque module opérationnel et des guides de formation détaillés par rôle utilisateur (Chef de Cuisine, Caissier, Comptable, Gérant Audit, Super-Administrateur Groupe).
+*   🧮 **[CALCULS.md](./CALCULS.md)** : Principes de calcul, équations comptables et interactions financières entre les modules, incluant les formules d'analyse multi-sites consolidées.
+*   🏛️ **[SYNTHESE_ARCHITECTURE_FORMATION.md](./SYNTHESE_ARCHITECTURE_FORMATION.md)** : Synthèse de l'architecture technique des composants React, de l'isolation multi-tenant, du fonctionnement des flux transverses d'information et plan global d'intégration.

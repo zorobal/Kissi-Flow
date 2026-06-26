@@ -162,7 +162,8 @@ Le schéma ci-dessous illustre comment une action dans un module se répercute i
 ### J. Administration des Rôles & Paramètres
 * **Description** : Contrôle d'accès rigoureux pour restreindre les modules de l'ERP aux utilisateurs autorisés selon leur profil opérationnel.
 * **Rôles natifs de l'application** :
-  * `ADMIN` : Accès universel non-restreint aux indicateurs stratégiques, bilans, exports et à la configuration globale de l'organisation.
+  * `SUPERADMIN` : Rôle suprême de pilotage de groupe et de franchise. Il accède au **Cockpit SuperAdmin** exclusif permettant de superviser les KPI consolidés multi-sites, de gérer l'architecture multi-établissement, et de piloter l'importation, l'exportation et la synchronisation cloud sécurisée via Supabase. L'onglet de synchronisation dans les paramètres lui est entièrement réservé.
+  * `ADMIN` : Accès universel non-restreint au niveau de son établissement d'affectation aux indicateurs stratégiques, bilans, exports et à la configuration globale de l'organisation.
   * `MANAGER` : Supervision des équipes, modification du catalogue de prix, validation d'inventaires physiques et ré-ajustement des fiches techniques.
   * `CASHIER` : Limité strictement au module **POS (Caisse Tactile)** et à la saisie des encaissements de service.
   * `WAREHOUSE` : Accès restreint à la gestion des **Stocks**, séléction des inventaires et réception des commandes d'achats fournisseurs.
@@ -226,3 +227,17 @@ L'une des innovations de notre ERP réside dans son **moteur de filtrage tempore
    * Identifier les plats sous-performants (Marge brute Resto faible) et ajuster les prix de vente en conséquence directement dans le catalogue.
 3. **Étape 3 : Logs d'Audit**
    * Consulter périodiquement l'historique d'audit pour repérer toutes les suppressions de plats du catalogue, les annulations suspectes de tickets de caisse ou les validations d'inventaires erronées.
+
+---
+
+### 👑 Rôle : Super-Administrateur Groupe / Franchise
+#### Objectifs clés : Superviser l'ensemble du parc de restaurants, administrer les flux cloud et gérer la portabilité des données multi-établissements.
+1. **Étape 1 : Supervision de la performance multi-sites**
+   * Consulter le module **Super-Admin** (accessible uniquement sous le profil `SUPERADMIN`).
+   * Analyser l'activité consolidée dans la section des **Indicateurs Globaux Consolidés \& Analyse de Performance** (CA consolidé, TVA, dépenses, résultat net, panier moyen AOV, marge nette %, couverts, expense ratio).
+2. **Étape 2 : Gestion de la Portabilité & Synchronisation Cloud**
+   * Aller dans les **Paramètres Système $\rightarrow$ Synchronisation Cloud (Supabase)** ou directement dans le **Super-Admin**.
+   * Pour un site donné, sauvegarder les données locales vers le cloud (`Push`) ou rapatrier les données cloud vers le navigateur (`Pull`).
+   * Utiliser la **Détection automatique des établissements** pour voir immédiatement quels restaurants ont déjà des données synchronisées sur Supabase, ou saisir un identifiant manuellement.
+3. **Étape 3 : Traçabilité et Audit-Trail Cloud**
+   * Analyser le **Journal d'Audit de Synchronisation en Direct** (console rétro terminal) pour suivre l'état des communications réseau avec Supabase et corriger toute anomalie d'API.

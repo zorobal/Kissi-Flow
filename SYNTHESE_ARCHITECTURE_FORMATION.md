@@ -22,6 +22,8 @@ L'application évite d'avoir un fichier monolithique en répartissant ses compos
 * `AccountingView.tsx` : Suivi comptable des écritures de trésorerie et clôtures journalières.
 * `FinanceView.tsx` : Enregistrement et affectation fiscale des charges de fonctionnement.
 * `BilanView.tsx` : Compilation automatisée des soldes intermédiaires de gestion et de la rentabilité nette.
+* `SuperAdminView.tsx` : Cockpit dédié à la supervision multi-site, à la consolidation des indicateurs avancés, et aux actions de portabilité de données vers Supabase.
+* `SettingsView.tsx` : Gestion des paramètres de l'enseigne, des collaborateurs et des préférences système, intégrant désormais des contrôles d'accès restreignant l'accès aux onglets de synchronisation cloud uniquement aux profils `SUPERADMIN`.
 
 ### 2. Isolation Multi-Tenant Multi-Établissement
 L'ERP implémente une abstraction sémantique où les données de transaction (Commandes, Stocks, Clôtures, Dépenses) sont estampillées d'un identifiant `tenantId`. Cette modélisation permet le passage dynamique d'un établissement à un autre en isolant parfaitement l'intégrité opérationnelle de chaque restaurant d'un même groupe ou d'une même franchise.
@@ -123,3 +125,11 @@ Ce parcours est conçu de manière directive pour assurer une prise de poste str
   * Produire la clôture journalière définitive (Zero-Out) figeant l'exercice opérationnel du jour.
   * Imputer les factures de dépenses courantes (électricité, salaires, charges matériels) en répartissant la base HT et la TVA correspondante.
 * **Points critiques** : Les dépenses de caisse doivent correspondre aux tickets d'achats physiques pour éviter les écarts d'audit à la validation.
+
+### Module 6 : Supervision Multi-Site & Synchronisation Cloud (SuperAdmin)
+* **Contenu** : Cockpit SuperAdmin, Détection Cloud Automatique, Restauration & Sauvegarde Supabase.
+* **Objectifs de compétence** :
+  * Analyser la performance consolidée du parc de restaurants (AOV, marge bénéficiaire nette %, couverts cumulés, Expense Ratio).
+  * Déclencher des sauvegardes ou restaurations manuelles par site/établissement pour assurer la portabilité absolue.
+  * Auditer le terminal de logs réseau en direct pour diagnostiquer la connectivité avec l'API Supabase.
+* **Points critiques** : La synchronisation Supabase gère l'ensemble des 19 collections locales en un seul bloc pour garantir la cohérence des relations transactionnelles. Une restauration écrase l'état local actuel. Accès strictement confidentiel réservé au rôle `SUPERADMIN`.
